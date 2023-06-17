@@ -19,7 +19,7 @@ $ go build -o lotus-car
   ⚠️ 注意生成索引文件时，需先修改`main.py`中的数据集根目录和数据集名称。
 - **--parent**：原始文件所在目录，一般放在`raw`目录下。
 - **--tmp-dir**：打包过程中的临时文件路径，需放在ssd上。
-- **--quantity**：一次打包的car文件数量。
+- **--quantity**：一次打包的car文件数量(320个 = 10TiB)。
 - **--out-dir**：car文件的保存位置。
 - **--out-file**：打包完car文件后，输出的csv文件名称及路径，该文件用于Client发订单。
 
