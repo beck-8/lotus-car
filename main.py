@@ -52,8 +52,8 @@ def main():
     parser.add_argument('-i', '--index', action='store_true', help='Index all raw files to json')
     parser.add_argument('-r', '--rename', action='store_true', help='Rename source files with name of uuid')
 
+    root_dir = '/ipfsdata' # 这里需要修改
     dataset_id = 1711 # 这里需要修改
-    root_dir = '/ipfsdata'
     parent_dir = f'{root_dir}/{dataset_id}'
     source_dir = parent_dir + '/src'
     target_dir = parent_dir + '/raw'
