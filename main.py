@@ -78,8 +78,15 @@ def main():
     parser = argparse.ArgumentParser(description='This script processes command line arguments.')
     # 添加参数
     parser.add_argument('-i', '--index', action='store_true', help='Index all raw files to json')
-    parser.add_argument('-r', '--rename', action='store_true', help='Rename source files with name of uuid')
+    parser.add_argument('-r', '--rename', action='store_true', help='Moving source files with name of uuid')
     parser.add_argument('-s', '--sync', action='store_true', help='Monitor and sync all car files to dest storage')
+
+    # 按照这样的目录结构
+    # /ipfsdata
+    #   |- raw
+    #   |- car
+    #   |- tmp1
+    #   |- tmp2
 
     root_dir = '/ipfsdata' # 这里需要修改为SSD下存放数据集的根目录
     dataset_id = 1711 # 这里需要修改为数据集的ID
