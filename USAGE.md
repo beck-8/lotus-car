@@ -42,7 +42,7 @@ Miner接单需先配置好Boost，关于Boost的配置参照: https://boost.file
 
 存储订单发送完毕后，将生成`dataset_1711_4_3200.csv`的一个csv索引文件，Miner通过该文件来导入离线订单。
 
-使用上面[lotus-car](https://github.com/minerdao/lotus-car.git)仓库中的`import-deals.sh`脚本来导入订单，注意修改脚本中car文件所在的目录。
+使用[lotus-car](https://github.com/minerdao/lotus-car.git)仓库中的`import-deals.sh`脚本来导入订单，注意修改脚本中car文件所在的目录。
 ```sh
 $ ./import-deals.sh dataset_1711_4_3200
 # 后面跟上数据集名称即可
