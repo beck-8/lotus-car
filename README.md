@@ -1,23 +1,26 @@
 # lotus-car
 A simple CLI to generate car file and compute commp at the same time.
 
-```shell
-$ ./lotus-car -h
+## Build
+```sh
+$ go build -o lotus-car
+```
+## Usage
+
+```sh
+$ ./lotus-car generate -h
 NAME:
-   lotus-car - generate car archive from list of files and compute commp in the mean time
+   lotus-car generate - generate car archive from list of files and compute commp in the mean time
 
 USAGE:
-   lotus-car [global options] command [command options] [arguments...]
+   lotus-car generate [command options] [arguments...]
 
-COMMANDS:
-   help, h  Shows a list of commands or help for one command
-
-GLOBAL OPTIONS:
+OPTIONS:
    --input value, -i value       File to read list of files, or '-' if from stdin (default: "-")
    --quantity value, -q value    Quantity of car files (default: 3)
    --file-size value             Target car file size, default to 32GiB size sector (default: 19327352832)
    --piece-size value, -s value  Target piece size, default to minimum possible value (default: 34359738368)
-   --out-file value              Output file as .csv format to save the car file (default: "source.csv")
+   --out-file value              Output file as .csv format to save the car file (default: "./source.csv")
    --out-dir value, -o value     Output directory to save the car file (default: ".")
    --tmp-dir value, -t value     Optionally copy the files to a temporary (and much faster) directory
    --parent value, -p value      Parent path of the dataset
