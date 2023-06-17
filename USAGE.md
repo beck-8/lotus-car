@@ -15,7 +15,7 @@ $ go build -o lotus-car
 ./lotus-car generate --input=/mnt/md0/1712/1712.json --parent=/mnt/md0/1712/raw --tmp-dir=/mnt/md0/tmp1 --quantity=320 --out-dir=/mnt/md0/car/dataset_1712_3_320  --out-file=/home/fil/csv/dataset_1712_3_320.csv
 ```
 参数说明：
-- **--input**：原始文件对应的索引文件路径，`.json`格式，通过[lotus-car](https://github.com/minerdao/lotus-car.git)仓库中`python3 main.py -i`来生成。
+- **--input**：原始文件对应的索引文件路径，`.json`格式，通过[lotus-car](https://github.com/minerdao/lotus-car.git)仓库中`python3 main.py -i`来生成。  
   ⚠️ 注意生成索引文件时，需先修改`main.py`中的数据集根目录和数据集名称。
 - **--parent**：原始文件所在目录，一般放在`raw`目录下。
 - **--tmp-dir**：打包过程中的临时文件路径，需放在ssd上。
