@@ -2,7 +2,7 @@
 
 ## 1. 打包car文件
 #### 编译打包工具
-先编译打包工具，需要安装Go 1.90+。
+先编译打包工具，需要安装Go 1.19+。
 ```sh
 $ git clone https://github.com/minerdao/lotus-car.git
 $ cd lotus-car
@@ -27,11 +27,11 @@ $ go build -o lotus-car
 每天大约可打包**15TiB**的数据，每个car文件(18GiB)打包时间约5～6分钟。
 
 #### 同步car文件到存储机上
-打包好的car文件，需移动到存储机器上，启动一个进程，运行[lotus-car](https://github.com/minerdao/lotus-car.git)仓库中`sync.py`来监听打包好的car文件，并同步到指定的存储目录。
+打包好的car文件，需移动到存储机器上，启动一个进程，运行[lotus-car](https://github.com/minerdao/lotus-car.git)仓库中`main.py`来监听已打包好的car文件，并同步到指定的存储目录。
 
-**⚠️ 注意：运行前需修改sync.py中的对应目录**
+**⚠️ 注意：运行前需修改main.py中的对应目录**
 ```sh
-$ python3 sync.py
+$ python3 main.py -s
 ```
 
 ## 2. Client发单
