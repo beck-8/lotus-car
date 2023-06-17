@@ -7,6 +7,8 @@ $ go build -o lotus-car
 ```
 ## Usage
 
+#### Pack car file
+
 ```sh
 $ ./lotus-car generate -h
 NAME:
@@ -48,7 +50,11 @@ The output file is a .csv file that contains a list of `pieceCID,fileSize,pieceS
 baga6ea4seaqm65rsjelthpzxl4xnki36yrio2xqphaxbi5v7jehltvgw7u2mgha,19683716501,34359738368,bafybeifvajapn6oa5wbmsxlxeffueb3ozzcuqxwcgoyradtqdukvzjaczu
 baga6ea4seaqaw4j4spzjg7gkdh42gae6zoa42buyxlgvekhp3fpi2t4ym233idy,19202597332,34359738368,bafybeih7mkv4u2tdygwhnhpwfijir6pe62x653iwq2s2nlqj5r25m35hoe
 baga6ea4seaqhdoz7ekvsunrlfdb5h4qhm3seu6kqgxnobfqn5apwfdmbwupeedq,19490669522,34359738368,bafybeig5ziizy3vdwqwyf37duf2vnjqmjflxuttphz563h24w7i3zmr54q
-baga6ea4seaqjoztvccnnhdhviikr3mh6ijb3huyuxy67sjft6lsb22o6varf4ay,19144736460,34359738368,bafybeihictzsyioyfq6yh3rqvbdn3rj7dd3rzhojjjz7yx32nq23qgt2wa
 ```
 
 The tmp dir is useful when the dataset source is on slow storage such as NFS or S3FS/Goofys mount.
+
+### Import deals
+```sh
+./import-deals dataset_1711_4_3200
+```
