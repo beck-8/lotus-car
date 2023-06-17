@@ -15,19 +15,21 @@ $ go build -o lotus-car
 ./lotus-car generate --input=/mnt/md0/1712/1712.json --parent=/mnt/md0/1712/raw --tmp-dir=/mnt/md0/tmp1 --quantity=320 --out-dir=/mnt/md0/car/dataset_1712_3_320  --out-file=/home/fil/csv/dataset_1712_3_320.csv
 ```
 参数说明：
-- **--input**：原始文件的索引文件路径，`.json`格式，通过[lotus-car](https://github.com/minerdao/lotus-car.git)仓库中`python3 main.py -i`来生成，注意生成索引文件对时候，需要先修改`main.py`中的数据集根目录和数据集名称。
-- **--parent**：原始文件所在的目录，一般放在`raw`目录下。
-- **--tmp-dir**：打包过程中的临时文件路径，需要放在ssd上。
-- **--quantity**：打包的car文件数量。
+- **--input**：原始文件对应的索引文件路径，`.json`格式，通过[lotus-car](https://github.com/minerdao/lotus-car.git)仓库中`python3 main.py -i`来生成。
+  ⚠️ 注意生成索引文件时，需先修改`main.py`中的数据集根目录和数据集名称。
+- **--parent**：原始文件所在目录，一般放在`raw`目录下。
+- **--tmp-dir**：打包过程中的临时文件路径，需放在ssd上。
+- **--quantity**：一次打包的car文件数量。
 - **--out-dir**：car文件的保存位置。
-- **--out-file**：打包完car文件后，输出的csv文件名称及路径，改文件用于client发订单。
+- **--out-file**：打包完car文件后，输出的csv文件名称及路径，该文件用于Client发订单。
 
-一般一台4块以上nVME U.2组成的Raid0的机器，可启动2个进程同时打包，每天大约可打包**15TiB**的数据，每个car文件(18GiB)打包的时间大约是5～6分钟。
+一台4块以上nVME U.2组成的Raid0的机器，可启动2个进程同时打包。  
+每天大约可打包**15TiB**的数据，每个car文件(18GiB)打包时间约5～6分钟。
 
 #### 同步car文件到存储机上
-打包好的car文件，需要移动到存储机器上，启动一个进程，运行[lotus-car](https://github.com/minerdao/lotus-car.git)仓库中`sync.py`来监听打包好的car文件，并同步到指定的存储目录。
+打包好的car文件，需移动到存储机器上，启动一个进程，运行[lotus-car](https://github.com/minerdao/lotus-car.git)仓库中`sync.py`来监听打包好的car文件，并同步到指定的存储目录。
 
-**⚠️注意：运行前需修改sync.py中的对应目录**
+**⚠️ 注意：运行前需修改sync.py中的对应目录**
 ```sh
 $ python3 sync.py
 ```
