@@ -258,16 +258,9 @@ type DealInfo struct {
 var CarIndex = &cli.Command{
 	Name:  "index",
 	Usage: "index deal info from file path and compute commp in the mean time",
-	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:    "file",
-			Aliases: []string{"f"},
-			Usage:   "File to read list of files, or '-' if from stdin",
-			Value:   "-",
-		},
-	},
-	Action: func(c *cli.Context) error {
-		inputFile := c.String("file")
+	ArgsUsage: "[inputFile]",
+	Action: func(cctx *cli.Context) error {
+		inputFile := cctx.Args().Get(0)
 
 		rdr, err := os.Open(inputFile)
 		if err != nil {
