@@ -26,6 +26,7 @@ $ go build -o lotus-car
 
 #### 同步car文件到存储机上
 打包好的car文件，需要移动到存储机器上，启动一个进程，运行[lotus-car](https://github.com/minerdao/lotus-car.git)仓库中`sync.py`来监听打包好的car文件，并同步到指定的存储目录。
+
 **⚠️注意：运行前需修改sync.py中的对应目录**
 ```sh
 $ python3 sync.py
@@ -38,6 +39,7 @@ $ python3 sync.py
 Miner接单需先配置好Boost，关于Boost的配置参照: https://boost.filecoin.io/getting-started/getting-started。
 
 存储订单发送完毕后，将生成`dataset_1711_4_3200.csv`的一个csv索引文件，Miner通过该文件来导入离线订单。
+
 使用上面[lotus-car](https://github.com/minerdao/lotus-car.git)仓库中的`import-deals.sh`脚本来导入订单，注意修改脚本中car文件所在的目录。
 ```sh
 $ ./import-deals.sh dataset_1711_4_3200
