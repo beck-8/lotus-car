@@ -6,8 +6,7 @@ deals=$(cat $csvpath)
 total=$(cat $csvpath | wc -l)
 sleep_seconds=150
 
-echo "Import dataset: ${1} from ${carpath} | ${csvpath}"
-echo "Total ${total} files"
+echo "Import dataset: ${1} from ${carpath} | ${csvpath} | total: ${total} files"
 
 # 导入订单之前，同步一下fcfs
 sudo $HOME/kodo_datacap/fcfs.sh sync
