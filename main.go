@@ -18,7 +18,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/filecoin-project/go-commp-utils/writer"
 	commcid "github.com/filecoin-project/go-fil-commcid"
 	commp "github.com/filecoin-project/go-fil-commp-hashhash"
 	"github.com/google/uuid"
@@ -26,9 +25,6 @@ import (
 	cbor "github.com/ipfs/go-ipld-cbor"
 	"github.com/tech-greedy/go-generate-car/util"
 	"github.com/urfave/cli/v2"
-
-	"github.com/ipld/go-car"
-	carv2 "github.com/ipld/go-car/v2"
 )
 
 type CommpResult struct {
@@ -62,7 +58,6 @@ func main() {
 	app := &cli.App{
 		Commands: []*cli.Command{
 			CarGenerate,
-			CarIndex,
 		},
 	}
 
@@ -158,16 +153,18 @@ var CarGenerate = &cli.Command{
 		}
 
 		csvF, err := os.Create(outFile)
-		defer csvF.Close()
 		if err != nil {
 			return err
 		}
+
+		defer csvF.Close()
 
 		for i := 0; i < int(quantity); i++ {
 			start := time.Now()
 			var selectedFiles []util.Finfo
 			totalSize := 0
-			rand.Seed(time.Now().Unix())
+			rand.Seed(time.Now().UnixNano()) // 改进：使用更可靠的随机数种子生成方法
+			// rand.Seed(time.Now().Unix())
 			for totalSize < int(fileSizeInput) {
 				choicedFile := inputFiles[rand.Intn(len(inputFiles))]
 				totalSize += int(choicedFile.Size)
@@ -183,6 +180,19 @@ var CarGenerate = &cli.Command{
 			if err != nil {
 				return err
 			}
+
+			// 创建资源释放函数
+			defer func() {
+				err := carF.Close()
+				if err != nil {
+					fmt.Printf("Failed to close car file: %v\n", err)
+				}
+				err = os.Remove(outPath)
+				if err != nil {
+					fmt.Printf("Failed to remove car file: %v\n", err)
+				}
+			}()
+
 			cp := new(commp.Calc)
 			writer := bufio.NewWriterSize(io.MultiWriter(carF, cp), BufSize)
 			_, cid, _, err := util.GenerateCar(ctx, selectedFiles, parent, tmpDir, writer)
@@ -253,77 +263,6 @@ type DealInfo struct {
 	PieceSize uint64 `json:"pieceSize"`
 	PieceCid  string `json:"pieceCid"`
 	DataCid   string `json:"dataCid"`
-}
-
-var CarIndex = &cli.Command{
-	Name:  "index",
-	Usage: "index deal info from file path and compute commp in the mean time",
-	ArgsUsage: "[inputFile]",
-	Action: func(cctx *cli.Context) error {
-		inputFile := cctx.Args().Get(0)
-
-		rdr, err := os.Open(inputFile)
-		if err != nil {
-			return err
-		}
-		defer rdr.Close() //nolint:errcheck
-
-		// check that the data is a car file; if it's not, retrieval won't work
-		_, err = car.ReadHeader(bufio.NewReader(rdr))
-		if err != nil {
-			panic("not a car file")
-		}
-
-		if _, err := rdr.Seek(0, io.SeekStart); err != nil {
-			return err
-		}
-
-		w := &writer.Writer{}
-		_, err = io.CopyBuffer(w, rdr, make([]byte, writer.CommPBuf))
-		if err != nil {
-			return err
-		}
-
-		commp, err := w.Sum()
-		if err != nil {
-			return err
-		}
-
-		info, err := os.Stat(inputFile)
-		if err != nil {
-			return err
-		}
-		filesize := info.Size()
-
-		cr, err := carv2.OpenReader(inputFile)
-		if err != nil {
-			panic(err)
-		}
-		defer cr.Close()
-
-		// Get root CIDs in the CARv1 file.
-		roots, err := cr.Roots()
-		if err != nil {
-			panic(err)
-		}
-
-		pieceSize := commp.PieceSize.Unpadded()
-
-		dealInfo := DealInfo{
-			FileSize:  uint64(filesize),
-			PieceSize: uint64(pieceSize),
-			PieceCid:  commp.PieceCID.String(),
-			DataCid:   roots[len(roots)-1].String(),
-		}
-
-		di, err := json.MarshalIndent(dealInfo, "", "  ")
-		if err != nil {
-			fmt.Println(err)
-		}
-		fmt.Print(string(di))
-
-		return nil
-	},
 }
 
 func fileNameWithoutExtTrimSuffix(fileName string) string {
