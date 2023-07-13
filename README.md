@@ -10,23 +10,26 @@ $ go build -o lotus-car
 #### Pack car file
 
 ```sh
-$ ./lotus-car generate -h
+$ ./lotus-car -h
 NAME:
-   lotus-car generate - generate car archive from list of files and compute commp in the mean time
+  generate - generate car archive from list of files and compute commp in the mean time
 
 USAGE:
-   lotus-car generate [command options] [arguments...]
+  generate [global options] command [command options] [arguments...]
 
-OPTIONS:
-   --input value, -i value       File to read list of files, or '-' if from stdin (default: "-")
-   --quantity value, -q value    Quantity of car files (default: 3)
-   --file-size value             Target car file size, default to 32GiB size sector (default: 19327352832)
-   --piece-size value, -s value  Target piece size, default to minimum possible value (default: 34359738368)
-   --out-file value              Output file as .csv format to save the car file (default: "./source.csv")
-   --out-dir value, -o value     Output directory to save the car file (default: ".")
-   --tmp-dir value, -t value     Optionally copy the files to a temporary (and much faster) directory
-   --parent value, -p value      Parent path of the dataset
-   --help, -h                    show help (default: false)
+COMMANDS:
+  help, h  Shows a list of commands or help for one command
+
+GLOBAL OPTIONS:
+  --input value, -i value       File to read list of files, or '-' if from stdin (default: "-")
+  --quantity value, -q value    Quantity of car files (default: 3)
+  --file-size value             Target car file size, default to 32GiB size sector (default: 19327352832)
+  --piece-size value, -s value  Target piece size, default to minimum possible value (default: 34359738368)
+  --out-file value              Output file as .csv format to save the car file (default: "./source.csv")
+  --out-dir value, -o value     Output directory to save the car file (default: ".")
+  --tmp-dir value, -t value     Optionally copy the files to a temporary (and much faster) directory
+  --parent value, -p value      Parent path of the dataset
+  --help, -h                    show help (default: false)
 ```
 
 The input file can be a text file that contains a list of file information SORTED by the path. i.e.
@@ -53,8 +56,3 @@ baga6ea4seaqhdoz7ekvsunrlfdb5h4qhm3seu6kqgxnobfqn5apwfdmbwupeedq,19490669522,343
 ```
 
 The tmp dir is useful when the dataset source is on slow storage such as NFS or S3FS/Goofys mount.
-
-### Import deals
-```sh
-./import-deals dataset_1711_4_3200
-```
