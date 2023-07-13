@@ -7,7 +7,7 @@ import time
 
 def list_all_files(rootdir):
     _files = []
-    listroot = os.listdir(rootdir) # 列出文件夹下的所有目录和文件
+    listroot = os.listdir(rootdir)
     for i in range(0,len(listroot)):
         path = os.path.join(rootdir, listroot[i])
         if os.path.isdir(path):
@@ -42,6 +42,9 @@ def index_files_to_json(source_dir, output_dir, file_name):
         json_arr.append(file_info)
 
     output_file = output_dir + '/' + file_name
+    if os.path.exists(output_file):
+        os.remove(output_file)
+
     with open(output_file, 'a', encoding='utf-8') as f:
         json.dump(json_arr, f)
         print('Index file '+ output_file +' generated')
@@ -62,14 +65,12 @@ def process_files(source_path, dest_path, prefix='baga6ea4seaq'):
 
 
 def monitor_and_move_files(source_path, dest_path):
-    # 先处理源路径下已经存在的符合条件的文件
     process_files(source_path, dest_path)
 
-    # 无限循环，监听是否有新的符合条件的文件产生
     while True:
         process_files(source_path, dest_path)
         print('Sleeping 60s and recheck...')
-        time.sleep(60)  # 每隔60秒检查一次是否有新的文件
+        time.sleep(60)
 
 
 
