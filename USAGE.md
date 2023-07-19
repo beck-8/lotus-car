@@ -12,7 +12,7 @@ $ go build -o lotus-car
 #### 打包car文件
 安装完毕后，执行以下命令打包car文件：
 ```sh
-./lotus-car generate --input=/mnt/md0/1000/1000.json --parent=/mnt/md0/1000/raw --tmp-dir=/mnt/md0/tmp1 --quantity=320 --out-dir=/mnt/md0/car/dataset_1000_3_320  --out-file=/home/fil/csv/dataset_1000_3_320.csv
+./lotus-car generate --input=/mnt/md0/1000/1000.json --parent=/mnt/md0/1000/raw --tmp-dir=/mnt/md0/tmp1 --quantity=320 --out-dir=/mnt/md0/car/dataset_1000_1_320  --out-file=/home/fil/csv/dataset_1000_1_320.csv
 ```
 参数说明：
 - **--input**：原始文件对应的索引文件路径，`.json`格式，通过[lotus-car](https://github.com/minerdao/lotus-car.git)仓库中`python3 main.py -i`来生成。  
@@ -56,10 +56,10 @@ $ python3 main.py -s
 ## 3. Miner接单
 Miner接单前，需先配置好Boost，关于Boost的配置请参照: https://boost.filecoin.io/getting-started/getting-started。
 
-存储订单发送完毕后，将生成`dataset_1000_4_3200.csv`的一个csv索引文件，Miner通过此文件导入离线订单。
+存储订单发送完毕后，将生成`dataset_1000_1_320.csv`的一个csv索引文件，Miner通过此文件导入离线订单。
 
 使用[lotus-car](https://github.com/minerdao/lotus-car.git)仓库中的`import-deals.sh`脚本来导入订单，注意修改脚本中car文件所在的目录。
 ```sh
-$ ./import-deals.sh dataset_1000_4_3200
+$ ./import-deals.sh dataset_1000_1_320
 # 后面跟上数据集名称即可
 ```
