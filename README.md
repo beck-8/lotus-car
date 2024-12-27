@@ -19,13 +19,14 @@ USAGE:
 
 COMMANDS:
    init         Initialize default configuration file
+   init-db      Initialize database
+   index        Index all files in target directory and save to json file
    generate     Generate car archive from list of files and compute commp
    regenerate   Regenerate car file from saved raw files information
-   index        Index all files in target directory and save to json file
-   init-db      Initialize the database
-   create-user  Create a new user
-   serve        Start the API server
    deal         Send deals for car files
+   import-deal  Import proposed deals data to boost
+   serve        Start API server
+   user         Manage users
    help, h      Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
@@ -66,12 +67,12 @@ Edit the config file, add postgres connection information, deal and API server c
 
 ### Make deals using boost
 ```sh
-./lotus-car deal --miner=f0xxxxxx --from-wallet=f1fpvwsdrxxvd334s3jfeoinistcmbgxxyuqsxxxx --api="https://api.node.glif.io" --batch-size=1
+./lotus-car deal --miner=f0xxxxxx --from-wallet=f1fpvwsdrxxvd334s3jfeoinistcmbgxxyuqsxxxx --api="https://api.node.glif.io" --total=1
 ```
 - **--miner**：miner address
 - **--from-wallet**：client wallet address
 - **--api**：boost api url
-- **--batch-size**：batch size
+- **--total**：Number of deals to send in total (default: 1)
 
 ### Index source files
 ```sh
@@ -113,3 +114,8 @@ The tmp dir is useful when the dataset source is on slow storage such as NFS or 
 ```
 - **--username**：user name
 - **--password**：user password
+
+
+## Database migration
+```sh
+psql -d lotus_car -f db/migrations/rename_car_files_to_files.sql

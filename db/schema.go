@@ -3,10 +3,11 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	_ "github.com/lib/pq"
-	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
 	"time"
+
+	"github.com/google/uuid"
+	_ "github.com/lib/pq"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type RawFileInfo struct {
@@ -19,24 +20,39 @@ type RawFileInfo struct {
 type DealStatus string
 
 const (
-	DealStatusPending DealStatus = "pending"   // 未发送或正在发送
-	DealStatusSuccess DealStatus = "success"   // 发送成功
-	DealStatusFailed  DealStatus = "failed"    // 发送失败
+	DealStatusPending DealStatus = "pending" // 未发送或正在发送
+	DealStatusSuccess DealStatus = "success" // 发送成功
+	DealStatusFailed  DealStatus = "failed"  // 发送失败
 )
 
+type Deal struct {
+	UUID               string    `json:"uuid"` // Primary key
+	StorageProvider    string    `json:"storage_provider"`
+	ClientWallet       string    `json:"client_wallet"`
+	PayloadCid         string    `json:"payload_cid"`
+	CommP              string    `json:"commp"`
+	StartEpoch         int64     `json:"start_epoch"`
+	EndEpoch           int64     `json:"end_epoch"`
+	ProviderCollateral float64   `json:"provider_collateral"`
+	Status             string    `json:"status"` // For tracking deal status
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
+}
+
 type CarFile struct {
-	ID          string     `json:"id"`
-	CommP       string     `json:"commp"`
-	DataCid     string     `json:"data_cid"`
-	PieceCid    string     `json:"piece_cid"`
-	PieceSize   uint64     `json:"piece_size"`
-	CarSize     uint64     `json:"car_size"`
-	FilePath    string     `json:"file_path"`
-	RawFiles    string     `json:"raw_files"`  // JSON string of []RawFileInfo
-	DealStatus  DealStatus `json:"deal_status"`
-	DealTime    *time.Time `json:"deal_time"`    // 发单时间
-	DealError   string     `json:"deal_error"`   // 发单失败的错误信息
-	CreatedAt   time.Time  `json:"created_at"`
+	ID         string     `json:"id"`
+	CommP      string     `json:"commp"`
+	DataCid    string     `json:"data_cid"`
+	PieceCid   string     `json:"piece_cid"`
+	PieceSize  uint64     `json:"piece_size"`
+	CarSize    uint64     `json:"car_size"`
+	FilePath   string     `json:"file_path"`
+	RawFiles   string     `json:"raw_files"` // JSON string of []RawFileInfo
+	DealStatus DealStatus `json:"deal_status"`
+	DealTime   *time.Time `json:"deal_time"`  // 发单时间
+	DealError  string     `json:"deal_error"` // 发单失败的错误信息
+	DealID     *string    `json:"deal_id"`    // Reference to Deal UUID, nullable
+	CreatedAt  time.Time  `json:"created_at"`
 }
 
 type User struct {
@@ -108,10 +124,31 @@ func InitDB(config *DBConfig) (*Database, error) {
 		return nil, fmt.Errorf("failed to create users table: %v", err)
 	}
 
-	// Create car_files table if not exists
+	// Create deals table if not exists
 	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS car_files (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		CREATE TABLE IF NOT EXISTS deals (
+			uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			storage_provider TEXT NOT NULL,
+			client_wallet TEXT NOT NULL,
+			payload_cid TEXT NOT NULL,
+			commp TEXT NOT NULL,
+			start_epoch BIGINT NOT NULL,
+			end_epoch BIGINT NOT NULL,
+			provider_collateral REAL NOT NULL,
+			status TEXT NOT NULL,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to create deals table: %v", err)
+	}
+
+	// Create files table if not exists (renamed from car_files)
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS files (
+			id TEXT PRIMARY KEY,
 			comm_p TEXT NOT NULL,
 			data_cid TEXT NOT NULL,
 			piece_cid TEXT NOT NULL,
@@ -122,12 +159,21 @@ func InitDB(config *DBConfig) (*Database, error) {
 			deal_status TEXT NOT NULL DEFAULT 'pending',
 			deal_time TIMESTAMP WITH TIME ZONE,
 			deal_error TEXT,
-			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+			deal_id UUID,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			CONSTRAINT fk_deal FOREIGN KEY(deal_id) REFERENCES deals(uuid)
 		)
 	`)
 	if err != nil {
 		db.Close()
-		return nil, fmt.Errorf("failed to create car_files table: %v", err)
+		return nil, fmt.Errorf("failed to create files table: %v", err)
+	}
+
+	// Drop the old car_files table if it exists
+	_, err = db.Exec(`DROP TABLE IF EXISTS car_files`)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to drop car_files table: %v", err)
 	}
 
 	return &Database{db: db}, nil
@@ -137,35 +183,35 @@ func (d *Database) Close() error {
 	return d.db.Close()
 }
 
-func (d *Database) InsertCarFile(car *CarFile) error {
+func (d *Database) InsertFile(file *CarFile) error {
 	// Generate UUID if not provided
-	if car.ID == "" {
+	if file.ID == "" {
 		u, err := uuid.NewRandom()
 		if err != nil {
 			return err
 		}
-		car.ID = u.String()
+		file.ID = u.String()
 	}
 
 	// Set default deal status if not provided
-	if car.DealStatus == "" {
-		car.DealStatus = DealStatusPending
+	if file.DealStatus == "" {
+		file.DealStatus = DealStatusPending
 	}
 
 	err := d.db.QueryRow(`
-		INSERT INTO car_files (id, comm_p, data_cid, piece_cid, piece_size, car_size, file_path, raw_files, deal_status, deal_time, deal_error)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO files (id, comm_p, data_cid, piece_cid, piece_size, car_size, file_path, raw_files, deal_status, deal_time, deal_error, deal_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id, created_at`,
-		car.ID, car.CommP, car.DataCid, car.PieceCid, car.PieceSize, car.CarSize, car.FilePath, car.RawFiles, car.DealStatus, car.DealTime, car.DealError,
-	).Scan(&car.ID, &car.CreatedAt)
+		file.ID, file.CommP, file.DataCid, file.PieceCid, file.PieceSize, file.CarSize, file.FilePath, file.RawFiles, file.DealStatus, file.DealTime, file.DealError, file.DealID,
+	).Scan(&file.ID, &file.CreatedAt)
 
 	return err
 }
 
-func (d *Database) ListCarFiles() ([]CarFile, error) {
+func (d *Database) ListFiles() ([]CarFile, error) {
 	rows, err := d.db.Query(`
-		SELECT id, comm_p, data_cid, piece_cid, piece_size, car_size, file_path, raw_files, deal_status, deal_time, deal_error, created_at
-		FROM car_files
+		SELECT id, comm_p, data_cid, piece_cid, piece_size, car_size, file_path, raw_files, deal_status, deal_time, deal_error, deal_id, created_at
+		FROM files
 		ORDER BY id DESC
 	`)
 	if err != nil {
@@ -173,62 +219,64 @@ func (d *Database) ListCarFiles() ([]CarFile, error) {
 	}
 	defer rows.Close()
 
-	var carFiles []CarFile
+	var files []CarFile
 	for rows.Next() {
-		var car CarFile
+		var file CarFile
 		err := rows.Scan(
-			&car.ID,
-			&car.CommP,
-			&car.DataCid,
-			&car.PieceCid,
-			&car.PieceSize,
-			&car.CarSize,
-			&car.FilePath,
-			&car.RawFiles,
-			&car.DealStatus,
-			&car.DealTime,
-			&car.DealError,
-			&car.CreatedAt,
+			&file.ID,
+			&file.CommP,
+			&file.DataCid,
+			&file.PieceCid,
+			&file.PieceSize,
+			&file.CarSize,
+			&file.FilePath,
+			&file.RawFiles,
+			&file.DealStatus,
+			&file.DealTime,
+			&file.DealError,
+			&file.DealID,
+			&file.CreatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
-		carFiles = append(carFiles, car)
+		files = append(files, file)
 	}
-	return carFiles, rows.Err()
+	return files, rows.Err()
 }
 
-func (d *Database) GetCarFile(id string) (*CarFile, error) {
-	car := &CarFile{}
+func (d *Database) GetFile(id string) (*CarFile, error) {
+	file := &CarFile{}
 	err := d.db.QueryRow(`
-		SELECT id, comm_p, data_cid, piece_cid, piece_size, car_size, file_path, raw_files, deal_status, deal_time, deal_error, created_at
-		FROM car_files
+		SELECT id, comm_p, data_cid, piece_cid, piece_size, car_size, file_path, raw_files, deal_status, deal_time, deal_error, deal_id, created_at
+		FROM files
 		WHERE id = $1
 	`, id).Scan(
-		&car.ID,
-		&car.CommP,
-		&car.DataCid,
-		&car.PieceCid,
-		&car.PieceSize,
-		&car.CarSize,
-		&car.FilePath,
-		&car.RawFiles,
-		&car.DealStatus,
-		&car.DealTime,
-		&car.DealError,
-		&car.CreatedAt,
+		&file.ID,
+		&file.CommP,
+		&file.DataCid,
+		&file.PieceCid,
+		&file.PieceSize,
+		&file.CarSize,
+		&file.FilePath,
+		&file.RawFiles,
+		&file.DealStatus,
+		&file.DealTime,
+		&file.DealError,
+		&file.DealID,
+		&file.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("car file with id %s not found", id)
+		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return car, nil
+	return file, nil
 }
 
-func (d *Database) DeleteCarFile(id string) error {
-	result, err := d.db.Exec("DELETE FROM car_files WHERE id = $1", id)
+func (d *Database) DeleteFile(id string) error {
+	result, err := d.db.Exec("DELETE FROM files WHERE id = $1", id)
 	if err != nil {
 		return err
 	}
@@ -239,38 +287,40 @@ func (d *Database) DeleteCarFile(id string) error {
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("car file with id %s not found", id)
+		return fmt.Errorf("file with id %s not found", id)
 	}
 
 	return nil
 }
 
-func (d *Database) SearchCarFiles(params SearchParams) ([]CarFile, error) {
+func (d *Database) SearchFiles(params SearchParams) ([]CarFile, error) {
 	query := `
-		SELECT id, comm_p, data_cid, piece_cid, piece_size, car_size, file_path, raw_files, deal_status, deal_time, deal_error, created_at 
-		FROM car_files 
+		SELECT id, comm_p, data_cid, piece_cid, piece_size, car_size, file_path, raw_files, deal_status, deal_time, deal_error, deal_id, created_at 
+		FROM files 
 		WHERE 1=1
 	`
 	var args []interface{}
-	paramCount := 1
+	argIndex := 1
 
 	if params.CommP != "" {
-		query += fmt.Sprintf(" AND comm_p = $%d", paramCount)
+		query += fmt.Sprintf(" AND comm_p = $%d", argIndex)
 		args = append(args, params.CommP)
-		paramCount++
-	}
-	if params.DataCid != "" {
-		query += fmt.Sprintf(" AND data_cid = $%d", paramCount)
-		args = append(args, params.DataCid)
-		paramCount++
-	}
-	if params.PieceCid != "" {
-		query += fmt.Sprintf(" AND piece_cid = $%d", paramCount)
-		args = append(args, params.PieceCid)
-		paramCount++
+		argIndex++
 	}
 
-	query += " ORDER BY created_at DESC"
+	if params.DataCid != "" {
+		query += fmt.Sprintf(" AND data_cid = $%d", argIndex)
+		args = append(args, params.DataCid)
+		argIndex++
+	}
+
+	if params.PieceCid != "" {
+		query += fmt.Sprintf(" AND piece_cid = $%d", argIndex)
+		args = append(args, params.PieceCid)
+		argIndex++
+	}
+
+	query += " ORDER BY id DESC"
 
 	rows, err := d.db.Query(query, args...)
 	if err != nil {
@@ -293,6 +343,7 @@ func (d *Database) SearchCarFiles(params SearchParams) ([]CarFile, error) {
 			&file.DealStatus,
 			&file.DealTime,
 			&file.DealError,
+			&file.DealID,
 			&file.CreatedAt,
 		)
 		if err != nil {
@@ -300,34 +351,43 @@ func (d *Database) SearchCarFiles(params SearchParams) ([]CarFile, error) {
 		}
 		files = append(files, file)
 	}
-	return files, rows.Err()
+
+	return files, nil
 }
 
 func (d *Database) DB() *sql.DB {
 	return d.db
 }
 
-func (d *Database) UpdateDealStatus(id string, status DealStatus, dealError string) error {
+func (d *Database) UpdateDealSentStatus(id string, status DealStatus, dealUUID string) error {
 	now := time.Now()
-	result, err := d.db.Exec(`
-		UPDATE car_files 
-		SET deal_status = $1,
-		    deal_time = $2,
-		    deal_error = $3
+	tx, err := d.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %v", err)
+	}
+	defer tx.Rollback()
+
+	// Update files table
+	result, err := tx.Exec(`
+		UPDATE files 
+		SET deal_status = $1, deal_time = $2, deal_id = $3
 		WHERE id = $4`,
-		status, now, dealError, id,
+		status, now, dealUUID, id,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to update deal status: %v", err)
+		return fmt.Errorf("failed to update files: %v", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("failed to get rows affected: %v", err)
 	}
-
 	if rowsAffected == 0 {
 		return fmt.Errorf("car file with id %s not found", id)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %v", err)
 	}
 
 	return nil
@@ -390,4 +450,129 @@ func (d *Database) CreateUser(username, password string) error {
 		VALUES ($1, $2)
 	`, username, hashedPassword)
 	return err
+}
+
+func (d *Database) InsertDeal(deal *Deal) error {
+	err := d.db.QueryRow(`
+		INSERT INTO deals (uuid, storage_provider, client_wallet, payload_cid, commp, start_epoch, end_epoch, provider_collateral, status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING created_at, updated_at`,
+		deal.UUID, deal.StorageProvider, deal.ClientWallet, deal.PayloadCid, deal.CommP,
+		deal.StartEpoch, deal.EndEpoch, deal.ProviderCollateral, deal.Status,
+	).Scan(&deal.CreatedAt, &deal.UpdatedAt)
+
+	return err
+}
+
+func (d *Database) GetDeal(uuid string) (*Deal, error) {
+	deal := &Deal{}
+	err := d.db.QueryRow(`
+		SELECT uuid, storage_provider, client_wallet, payload_cid, commp, start_epoch, end_epoch, 
+		       provider_collateral, status, created_at, updated_at
+		FROM deals
+		WHERE uuid = $1`,
+		uuid,
+	).Scan(
+		&deal.UUID,
+		&deal.StorageProvider,
+		&deal.ClientWallet,
+		&deal.PayloadCid,
+		&deal.CommP,
+		&deal.StartEpoch,
+		&deal.EndEpoch,
+		&deal.ProviderCollateral,
+		&deal.Status,
+		&deal.CreatedAt,
+		&deal.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return deal, nil
+}
+
+func (d *Database) UpdateDealStatus(uuid string, status string) error {
+	_, err := d.db.Exec(`
+		UPDATE deals 
+		SET status = $1, updated_at = CURRENT_TIMESTAMP
+		WHERE uuid = $2`,
+		status, uuid,
+	)
+	return err
+}
+
+func (d *Database) ListDeals() ([]Deal, error) {
+	rows, err := d.db.Query(`
+		SELECT uuid, storage_provider, client_wallet, payload_cid, commp, start_epoch, end_epoch,
+		       provider_collateral, status, created_at, updated_at
+		FROM deals
+		ORDER BY created_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var deals []Deal
+	for rows.Next() {
+		var deal Deal
+		err := rows.Scan(
+			&deal.UUID,
+			&deal.StorageProvider,
+			&deal.ClientWallet,
+			&deal.PayloadCid,
+			&deal.CommP,
+			&deal.StartEpoch,
+			&deal.EndEpoch,
+			&deal.ProviderCollateral,
+			&deal.Status,
+			&deal.CreatedAt,
+			&deal.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		deals = append(deals, deal)
+	}
+	return deals, nil
+}
+
+func (d *Database) GetDealsByStatus(status string) ([]Deal, error) {
+	rows, err := d.db.Query(`
+		SELECT uuid, storage_provider, client_wallet, payload_cid, commp, start_epoch, end_epoch,
+		       provider_collateral, status, created_at, updated_at
+		FROM deals
+		WHERE status = $1
+		ORDER BY created_at DESC
+	`, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var deals []Deal
+	for rows.Next() {
+		var deal Deal
+		err := rows.Scan(
+			&deal.UUID,
+			&deal.StorageProvider,
+			&deal.ClientWallet,
+			&deal.PayloadCid,
+			&deal.CommP,
+			&deal.StartEpoch,
+			&deal.EndEpoch,
+			&deal.ProviderCollateral,
+			&deal.Status,
+			&deal.CreatedAt,
+			&deal.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		deals = append(deals, deal)
+	}
+	return deals, nil
 }
