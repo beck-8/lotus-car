@@ -10,7 +10,6 @@ server:
   address: :8080
 
 deal:
-  lotus_path: /Users/max/workspace/filecoin/lotus-optimized/lotus
   boost_path: /Users/max/workspace/filecoin/boost/boost --repo=/Users/max/.boost-client
   deal_delay: 1000  # 发单间隔时间（毫秒）
 
