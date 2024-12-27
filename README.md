@@ -32,12 +32,13 @@ GLOBAL OPTIONS:
    --help, -h                show help (default: false)
 ```
 
-#### Create admin user
+#### Initialize default configuration file
 ```sh
-./lotus-car create-user --username admin --password your-password
+./lotus-car init
 ```
+Edit the config file, add postgres connection information, deal and API server configuration.
 
-#### Generate car file and compute commp
+#### Generate car files
 ```sh
 ./lotus-car generate --input=/ipfsdata/1712/1712.json --parent=/ipfsdata/1712/raw --tmp-dir=/ipfsdata/tmp1 --quantity=1 --out-dir=/ipfsdata/car --out-file=/home/fil/csv/dataset_1712_1227.csv
 ```
@@ -55,7 +56,6 @@ GLOBAL OPTIONS:
 - **--id**：car file id in database
 - **--parent**：original file directory
 - **--out-dir**：car file output directory
-
 
 #### Make deals using boost
 ```sh
@@ -89,3 +89,20 @@ The input file can be a text file that contains a list of file information SORTE
 ```
 
 The tmp dir is useful when the dataset source is on slow storage such as NFS or S3FS/Goofys mount.
+
+## API Server
+```sh
+./lotus-car serve --port=8080
+```
+- **--port**：api server port
+- **--config**：api server config file path
+
+## Initialize the database
+```sh
+./lotus-car init-db
+```
+
+## Create admin user
+```sh
+./lotus-car create-user --username admin --password your-password
+```

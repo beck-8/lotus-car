@@ -287,7 +287,7 @@ func main() {
 							return err
 						}
 						elapsed := time.Since(start)
-						fmt.Printf("Generated %d car %s took %s \n", i, generatedFile, elapsed)
+						fmt.Printf("Generated %d car %s took %s \n", i+1, generatedFile, elapsed)
 
 						// get car file size
 						carFi, err := os.Stat(generatedFile)
