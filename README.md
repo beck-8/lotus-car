@@ -33,13 +33,19 @@ GLOBAL OPTIONS:
    --help, -h                show help (default: false)
 ```
 
-#### Initialize default configuration file
+### Initialize default configuration file
 ```sh
 ./lotus-car init
 ```
+
+### Initialize the database
+```sh
+./lotus-car init-db
+```
+
 Edit the config file, add postgres connection information, deal and API server configuration.
 
-#### Generate car files
+### Generate car files
 ```sh
 ./lotus-car generate --input=/ipfsdata/1712/1712.json --parent=/ipfsdata/1712/raw --tmp-dir=/ipfsdata/tmp1 --quantity=1 --out-dir=/ipfsdata/car --out-file=/home/fil/csv/dataset_1712_1227.csv
 ```
@@ -50,7 +56,7 @@ Edit the config file, add postgres connection information, deal and API server c
 - **--out-dir**：car file output directory
 - **--out-file**：output csv file name
 
-#### Regenerate car file from database
+### Regenerate car file from database
 ```sh
 ./lotus-car regenerate --id=86e7354d-d6ad-4fa3-b403-0790a567a3b4 --parent=/ipfsdata/dataset/1/raw --out-dir=/ipfsdata/car-regenerate
 ```
@@ -58,7 +64,7 @@ Edit the config file, add postgres connection information, deal and API server c
 - **--parent**：original file directory
 - **--out-dir**：car file output directory
 
-#### Make deals using boost
+### Make deals using boost
 ```sh
 ./lotus-car deal --miner=f0xxxxxx --from-wallet=f1fpvwsdrxxvd334s3jfeoinistcmbgxxyuqsxxxx --api="https://api.node.glif.io" --batch-size=1
 ```
@@ -67,7 +73,7 @@ Edit the config file, add postgres connection information, deal and API server c
 - **--api**：boost api url
 - **--batch-size**：batch size
 
-#### Index source files
+### Index source files
 ```sh
 ./lotus-car index --source-dir /ipfsdata/dataset/1/raw --output-dir /ipfsdata/dataset/1 --index-file 1.json
 ```
@@ -92,18 +98,16 @@ The input file can be a text file that contains a list of file information SORTE
 The tmp dir is useful when the dataset source is on slow storage such as NFS or S3FS/Goofys mount.
 
 ## API Server
+
+### Start the API server
 ```sh
 ./lotus-car serve --port=8080
 ```
 - **--port**：api server port
 - **--config**：api server config file path
 
-## Initialize the database
-```sh
-./lotus-car init-db
-```
 
-## Create admin user
+### Create admin user
 ```sh
 ./lotus-car create-user --username admin --password your-password
 ```
