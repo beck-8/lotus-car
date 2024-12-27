@@ -2,11 +2,11 @@
 
 ## 1. 打包car文件
 #### 编译打包工具
-先编译打包工具，需要安装Go 1.19+。
+先编译打包工具，需要安装Go 1.20+。
 ```sh
 $ git clone https://github.com/minerdao/lotus-car.git
 $ cd lotus-car
-$ go build -o lotus-car
+$ make
 ```
 
 #### 打包car文件
@@ -41,28 +41,6 @@ $ go build -o lotus-car
 
 一台4块以上nVME U.2组成的Raid0的机器，可启动2个进程同时打包。  
 每天大约可打包**15TiB**的数据，每个car文件(18GiB)打包时间约5～6分钟。
-
-#### 同步car文件到存储机上
-打包好的car文件需要移动到存储机器上。你需要启动一个进程，运行[lotus-car](https://github.com/minerdao/lotus-car.git)仓库中`main.py`来监听已打包好的car文件，并同步到指定的存储目录。
-
-**⚠️ 注意：运行前需修改main.py中的对应目录**
-```sh
-$ python3 main.py -s
-```
-
-## 2. Client发单
-打包完成后，将上面`--out-file`对应的csv文件发给Client来发布存储订单。
-
-## 3. Miner接单
-Miner接单前，需先配置好Boost，关于Boost的配置请参照: https://boost.filecoin.io/getting-started/getting-started。
-
-存储订单发送完毕后，将生成`dataset_1000_1_320.csv`的一个csv索引文件，Miner通过此文件导入离线订单。
-
-使用[lotus-car](https://github.com/minerdao/lotus-car.git)仓库中的`import-deals.sh`脚本来导入订单，注意修改脚本中car文件所在的目录。
-```sh
-$ ./import-deals.sh dataset_1000_1_320
-# 后面跟上数据集名称即可
-```
 
 
 

@@ -30,6 +30,7 @@ import (
 	"github.com/minerdao/lotus-car/api"
 	"github.com/minerdao/lotus-car/config"
 	"github.com/minerdao/lotus-car/db"
+	"github.com/minerdao/lotus-car/middleware"
 	"github.com/minerdao/lotus-car/util"
 	"github.com/urfave/cli/v2"
 )
@@ -651,6 +652,57 @@ func main() {
 				},
 			},
 			{
+				Name:  "create-user",
+				Usage: "Create a new user",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "username",
+						Usage:    "Username for the new user",
+						Required: true,
+					},
+					&cli.StringFlag{
+						Name:     "password",
+						Usage:    "Password for the new user",
+						Required: true,
+					},
+				},
+				Action: func(c *cli.Context) error {
+					// Load configuration
+					cfg, err := config.LoadConfig(c.String("config"))
+					if err != nil {
+						return fmt.Errorf("failed to load config: %v", err)
+					}
+
+					// Initialize database connection
+					dbConfig := &db.DBConfig{
+						Host:     cfg.Database.Host,
+						Port:     cfg.Database.Port,
+						User:     cfg.Database.User,
+						Password: cfg.Database.Password,
+						DBName:   cfg.Database.DBName,
+						SSLMode:  cfg.Database.SSLMode,
+					}
+
+					database, err := db.InitDB(dbConfig)
+					if err != nil {
+						return fmt.Errorf("failed to initialize database: %v", err)
+					}
+					defer database.Close()
+
+					username := c.String("username")
+					password := c.String("password")
+
+					// 创建用户
+					err = database.CreateUser(username, password)
+					if err != nil {
+						return fmt.Errorf("failed to create user: %v", err)
+					}
+
+					fmt.Printf("User %s created successfully\n", username)
+					return nil
+				},
+			},
+			{
 				Name:  "serve",
 				Usage: "Start the API server",
 				Action: func(c *cli.Context) error {
@@ -669,16 +721,27 @@ func main() {
 						SSLMode:  cfg.Database.SSLMode,
 					}
 
-					apiServer, err := api.NewAPIServer(dbConfig)
+					authConfig := middleware.AuthConfig{
+						JWTSecret:        cfg.Auth.JWTSecret,
+						TokenExpireHours: cfg.Auth.TokenExpireHours,
+					}
+
+					apiServer, err := api.NewAPIServer(dbConfig, authConfig)
 					if err != nil {
 						return fmt.Errorf("failed to create API server: %v", err)
 					}
 
 					mux := http.NewServeMux()
-					mux.HandleFunc("/api/car-files", apiServer.ListCarFiles)
-					mux.HandleFunc("/api/car-file", apiServer.GetCarFile)   // GET with ?id=X
-					mux.HandleFunc("/api/delete", apiServer.DeleteCarFile)  // DELETE with ?id=X
-					mux.HandleFunc("/api/search", apiServer.SearchCarFiles) // GET with query params
+
+					// 公开的路由（不需要认证）
+					mux.HandleFunc("/api/login", apiServer.Login)
+
+					// 需要认证的路由
+					authMiddleware := middleware.AuthMiddleware(authConfig)
+					mux.HandleFunc("/api/car-files", authMiddleware(apiServer.ListCarFiles))
+					mux.HandleFunc("/api/car-file", authMiddleware(apiServer.GetCarFile))   // GET with ?id=X
+					mux.HandleFunc("/api/delete", authMiddleware(apiServer.DeleteCarFile))  // DELETE with ?id=X
+					mux.HandleFunc("/api/search", authMiddleware(apiServer.SearchCarFiles)) // GET with query params
 
 					log.Printf("Starting API server on %s", cfg.Server.Address)
 					return http.ListenAndServe(cfg.Server.Address, mux)

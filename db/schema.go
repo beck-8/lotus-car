@@ -5,6 +5,7 @@ import (
 	"fmt"
 	_ "github.com/lib/pq"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 	"time"
 )
 
@@ -36,6 +37,14 @@ type CarFile struct {
 	DealTime    *time.Time `json:"deal_time"`    // 发单时间
 	DealError   string     `json:"deal_error"`   // 发单失败的错误信息
 	CreatedAt   time.Time  `json:"created_at"`
+}
+
+type User struct {
+	ID        string    `json:"id"`
+	Username  string    `json:"username"`
+	Password  string    `json:"password"` // 存储密码哈希
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type SearchParams struct {
@@ -84,6 +93,21 @@ func InitDB(config *DBConfig) (*Database, error) {
 		return nil, fmt.Errorf("failed to ping database: %v", err)
 	}
 
+	// Create users table if not exists
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS users (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			username TEXT NOT NULL UNIQUE,
+			password TEXT NOT NULL,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to create users table: %v", err)
+	}
+
 	// Create car_files table if not exists
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS car_files (
@@ -121,6 +145,11 @@ func (d *Database) InsertCarFile(car *CarFile) error {
 			return err
 		}
 		car.ID = u.String()
+	}
+
+	// Set default deal status if not provided
+	if car.DealStatus == "" {
+		car.DealStatus = DealStatusPending
 	}
 
 	err := d.db.QueryRow(`
@@ -302,4 +331,63 @@ func (d *Database) UpdateDealStatus(id string, status DealStatus, dealError stri
 	}
 
 	return nil
+}
+
+func (d *Database) GetUserByUsername(username string) (*User, error) {
+	user := &User{}
+	err := d.db.QueryRow(`
+		SELECT id, username, password, created_at, updated_at
+		FROM users
+		WHERE username = $1
+	`, username).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Password,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", fmt.Errorf("failed to hash password: %v", err)
+	}
+	return string(bytes), nil
+}
+
+func CheckPassword(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
+}
+
+func (d *Database) CreateUser(username, password string) error {
+	// 检查用户名是否已存在
+	existingUser, err := d.GetUserByUsername(username)
+	if err != nil {
+		return fmt.Errorf("failed to check existing user: %v", err)
+	}
+	if existingUser != nil {
+		return fmt.Errorf("username %s already exists", username)
+	}
+
+	// 对密码进行哈希
+	hashedPassword, err := HashPassword(password)
+	if err != nil {
+		return err
+	}
+
+	// 插入新用户
+	_, err = d.db.Exec(`
+		INSERT INTO users (username, password)
+		VALUES ($1, $2)
+	`, username, hashedPassword)
+	return err
 }

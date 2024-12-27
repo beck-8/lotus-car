@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/minerdao/lotus-car/db"
+	"github.com/minerdao/lotus-car/middleware"
 )
 
 type CarFileResponse struct {
@@ -21,19 +22,32 @@ type CarFileResponse struct {
 }
 
 type APIServer struct {
-	db *db.Database
+	db        *db.Database
+	authConfig middleware.AuthConfig
 }
 
 type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
-func NewAPIServer(config *db.DBConfig) (*APIServer, error) {
+type LoginRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type LoginResponse struct {
+	Token string `json:"token"`
+}
+
+func NewAPIServer(config *db.DBConfig, authCfg middleware.AuthConfig) (*APIServer, error) {
 	database, err := db.InitDB(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %v", err)
 	}
-	return &APIServer{db: database}, nil
+	return &APIServer{
+		db:        database,
+		authConfig: authCfg,
+	}, nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
@@ -201,4 +215,44 @@ func (s *APIServer) UpdateDealStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{
 		"message": fmt.Sprintf("deal status for car file %s updated to %s", idStr, status),
 	})
+}
+
+// Login 处理登录请求
+func (s *APIServer) Login(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "only POST method is allowed")
+		return
+	}
+
+	var req LoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	// 从数据库获取用户信息
+	user, err := s.db.GetUserByUsername(req.Username)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get user")
+		return
+	}
+
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "invalid username or password")
+		return
+	}
+
+	// 验证密码
+	if !db.CheckPassword(req.Password, user.Password) {
+		writeError(w, http.StatusUnauthorized, "invalid username or password")
+		return
+	}
+
+	token, err := middleware.GenerateToken(req.Username, s.authConfig)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to generate token")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, LoginResponse{Token: token})
 }

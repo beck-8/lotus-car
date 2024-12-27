@@ -25,3 +25,7 @@ dist/
 *.car
 lotus-car
 vendor
+
+api.http
+
+config.yaml

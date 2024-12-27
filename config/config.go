@@ -27,6 +27,11 @@ type Config struct {
 		BoostPath  string `yaml:"boost_path"`
 		DealDelay  int    `yaml:"deal_delay"`  // 发单间隔时间（毫秒）
 	} `yaml:"deal"`
+
+	Auth struct {
+		JWTSecret string `yaml:"jwt_secret"`
+		TokenExpireHours int `yaml:"token_expire_hours"`
+	} `yaml:"auth"`
 }
 
 // DefaultConfig returns a configuration with default values
@@ -60,6 +65,13 @@ func DefaultConfig() *Config {
 			LotusPath:  "",
 			BoostPath:  "",
 			DealDelay:  0,
+		},
+		Auth: struct {
+			JWTSecret string `yaml:"jwt_secret"`
+			TokenExpireHours int `yaml:"token_expire_hours"`
+		}{
+			JWTSecret: "secret",
+			TokenExpireHours: 2,
 		},
 	}
 }

@@ -3,65 +3,89 @@ A simple CLI to generate car file and compute commp at the same time.
 
 ## Build
 ```sh
-$ go build -o lotus-car
+git clone https://github.com/minerdao/lotus-car.git
+cd lotus-car
+make
 ```
 ## Usage
 
-#### Pack car file
-
 ```sh
-$ ./lotus-car -h
+./lotus-car -h
 NAME:
-  generate - generate car archive from list of files and compute commp in the mean time
+   lotus-car - A tool for generating car files
 
 USAGE:
-  generate [global options] command [command options] [arguments...]
+   lotus-car [global options] command [command options] [arguments...]
 
 COMMANDS:
-  help, h  Shows a list of commands or help for one command
+   init        Initialize default configuration file
+   generate    Generate car archive from list of files and compute commp
+   regenerate  Regenerate car file from saved raw files information
+   index       Index all files in target directory and save to json file
+   init-db     Initialize the database
+   serve       Start the API server
+   deal        Send deals for car files
+   help, h     Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
-  --input value, -i value       File to read list of files, or '-' if from stdin (default: "-")
-  --quantity value, -q value    Quantity of car files (default: 3)
-  --file-size value             Target car file size, default to 32GiB size sector (default: 19327352832)
-  --piece-size value, -s value  Target piece size, default to minimum possible value (default: 34359738368)
-  --out-file value              Output file as .csv format to save the car file (default: "./source.csv")
-  --out-dir value, -o value     Output directory to save the car file (default: ".")
-  --tmp-dir value, -t value     Optionally copy the files to a temporary (and much faster) directory
-  --parent value, -p value      Parent path of the dataset
-  --help, -h                    show help (default: false)
+   --config value, -c value  Path to config file (default: "config.yaml")
+   --help, -h                show help (default: false)
 ```
 
-./lotus-car generate --file-size=18874368 --piece-size=33554432 --input=/Users/max/data/dataset/1/1.json --parent=/Users/max/data/dataset/1/raw --tmp-dir=/Users/max/data/dataset/tmp --quantity=1 --out-dir=/Users/max/data/dataset/car --out-file=/Users/max/data/dataset/csv/1.csv
+#### Create admin user
+```sh
+./lotus-car create-user --username admin --password your-password
+```
 
-./lotus-car regenerate --id=86e7354d-d6ad-4fa3-b403-0790a567a3b4 --parent=/Users/max/data/dataset/1/raw --out-dir=/Users/max/data/dataset/car-regenerate
+#### Generate car file and compute commp
+```sh
+./lotus-car generate --input=/ipfsdata/1712/1712.json --parent=/ipfsdata/1712/raw --tmp-dir=/ipfsdata/tmp1 --quantity=1 --out-dir=/ipfsdata/car --out-file=/home/fil/csv/dataset_1712_1227.csv
+```
+- **--input**：original file index file
+- **--parent**：original file directory
+- **--tmp-dir**：temporary directory
+- **--quantity**：car file quantity
+- **--out-dir**：car file output directory
+- **--out-file**：output csv file name
 
-./lotus-car deal --use-boost --miner=f01824405 --from-wallet=f1fpvwsdrxxvd334s3jfeoinistcmbgxxyuqseywa --api="https://api.node.glif.io" --batch-size=1
+#### Regenerate car file from database
+```sh
+./lotus-car regenerate --id=86e7354d-d6ad-4fa3-b403-0790a567a3b4 --parent=/ipfsdata/dataset/1/raw --out-dir=/ipfsdata/car-regenerate
+```
+- **--id**：car file id in database
+- **--parent**：original file directory
+- **--out-dir**：car file output directory
 
-./lotus-car index --source-dir /Users/max/data/dataset/1/raw --output-dir /Users/max/data/dataset/1 --index-file 1.json
 
+#### Make deals using boost
+```sh
+./lotus-car deal --miner=f0xxxxxx --from-wallet=f1fpvwsdrxxvd334s3jfeoinistcmbgxxyuqsxxxx --api="https://api.node.glif.io" --batch-size=1
+```
+- **--miner**：miner address
+- **--from-wallet**：client wallet address
+- **--api**：boost api url
+- **--batch-size**：batch size
+
+#### Index source files
+```sh
+./lotus-car index --source-dir /ipfsdata/dataset/1/raw --output-dir /ipfsdata/dataset/1 --index-file 1.json
+```
+- **--source-dir**：source file directory
+- **--output-dir**：output directory
+- **--index-file**：output json file
 
 The input file can be a text file that contains a list of file information SORTED by the path. i.e.
 ```json
 [
   {
     "Path": "test/test.txt",
-    "Size": 4038,
-    "Start": 1000, # Inclusive
-    "End": 2000 # Exclusive
+    "Size": 4038
   },
   {
     "Path": "test/test2.txt",
     "Size": 3089
   }
 ]
-```
-
-The output file is a .csv file that contains a list of `pieceCID,fileSize,pieceSize,dataCID`, i.e.
-```csv
-baga6ea4seaqm65rsjelthpzxl4xnki36yrio2xqphaxbi5v7jehltvgw7u2mgha,19683716501,34359738368,bafybeifvajapn6oa5wbmsxlxeffueb3ozzcuqxwcgoyradtqdukvzjaczu
-baga6ea4seaqaw4j4spzjg7gkdh42gae6zoa42buyxlgvekhp3fpi2t4ym233idy,19202597332,34359738368,bafybeih7mkv4u2tdygwhnhpwfijir6pe62x653iwq2s2nlqj5r25m35hoe
-baga6ea4seaqhdoz7ekvsunrlfdb5h4qhm3seu6kqgxnobfqn5apwfdmbwupeedq,19490669522,34359738368,bafybeig5ziizy3vdwqwyf37duf2vnjqmjflxuttphz563h24w7i3zmr54q
 ```
 
 The tmp dir is useful when the dataset source is on slow storage such as NFS or S3FS/Goofys mount.
