@@ -91,8 +91,8 @@ def main():
     #       |- 1001.json
     #       |- raw
 
-    root_dir = '/mnt/md0' # 这里需要修改为SSD下存放数据集的根目录
-    dataset_id = 1000 # 这里需要修改为数据集的ID
+    root_dir = '/Users/max/data/dataset' # 这里需要修改为SSD下存放数据集的根目录
+    dataset_id = 1 # 这里需要修改为数据集的ID
     car_temp_path = f'{root_dir}/car' # 这里修改为car文件临时存放的路径
     car_dest_path = '/datacap' # 这里修改为car文件最终存放的路径（fcfs/raid）
 

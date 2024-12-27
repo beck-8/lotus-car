@@ -32,6 +32,16 @@ GLOBAL OPTIONS:
   --help, -h                    show help (default: false)
 ```
 
+./lotus-car generate --file-size=18874368 --piece-size=33554432 --input=/Users/max/data/dataset/1/1.json --parent=/Users/max/data/dataset/1/raw --tmp-dir=/Users/max/data/dataset/tmp --quantity=1 --out-dir=/Users/max/data/dataset/car --out-file=/Users/max/data/dataset/csv/1.csv
+
+./lotus-car regenerate --id=86e7354d-d6ad-4fa3-b403-0790a567a3b4 --parent=/Users/max/data/dataset/1/raw --out-dir=/Users/max/data/dataset/car-regenerate
+
+./lotus-car deal \
+  --miner f01234 \
+  --from-wallet f1abc... \
+  --api "FULLNODE_API_INFO=eyJhbGci..." \
+  --really-do-it
+
 The input file can be a text file that contains a list of file information SORTED by the path. i.e.
 ```json
 [

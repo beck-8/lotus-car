@@ -89,7 +89,7 @@ type fileSlice struct {
 }
 
 func (fs *fileSlice) Close() error {
-	return fs.Close()
+	return fs.r.Close()
 }
 
 func (fs *fileSlice) Read(p []byte) (n int, err error) {
@@ -372,8 +372,24 @@ func BuildFileNode(ctx context.Context, item Finfo, bufDs ipld.DAGService, cidBu
 		Dagserv:    bufDs,
 		NoCopy:     true,
 	}
+	// Instead of using SetOffset, we'll create a reader that starts at the correct offset
+	if item.Start > 0 {
+		if seeker, ok := r.(io.ReadSeeker); ok {
+			_, err = seeker.Seek(item.Start, io.SeekStart)
+			if err != nil {
+				logger.Warn(err)
+				return
+			}
+		} else {
+			// If seeking is not supported, read and discard bytes until we reach the start position
+			_, err = io.CopyN(io.Discard, r, item.Start)
+			if err != nil {
+				logger.Warn(err)
+				return
+			}
+		}
+	}
 	db, err := params.New(chunker.NewSizeSplitter(r, int64(UnixfsChunkSize)))
-	db.SetOffset(uint64(item.Start))
 	if err != nil {
 		logger.Warn(err)
 		return
