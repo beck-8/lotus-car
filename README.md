@@ -110,7 +110,7 @@ The tmp dir is useful when the dataset source is on slow storage such as NFS or 
 
 ### Create admin user
 ```sh
-./lotus-car create-user --username admin --password your-password
+./lotus-car user create --username=admin --password=admin_pwd
 ```
 - **--username**：user name
 - **--password**：user password
