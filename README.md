@@ -18,14 +18,15 @@ USAGE:
    lotus-car [global options] command [command options] [arguments...]
 
 COMMANDS:
-   init        Initialize default configuration file
-   generate    Generate car archive from list of files and compute commp
-   regenerate  Regenerate car file from saved raw files information
-   index       Index all files in target directory and save to json file
-   init-db     Initialize the database
-   serve       Start the API server
-   deal        Send deals for car files
-   help, h     Shows a list of commands or help for one command
+   init         Initialize default configuration file
+   generate     Generate car archive from list of files and compute commp
+   regenerate   Regenerate car file from saved raw files information
+   index        Index all files in target directory and save to json file
+   init-db      Initialize the database
+   create-user  Create a new user
+   serve        Start the API server
+   deal         Send deals for car files
+   help, h      Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
    --config value, -c value  Path to config file (default: "config.yaml")
