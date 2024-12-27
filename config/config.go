@@ -9,27 +9,37 @@ import (
 )
 
 type Config struct {
-	Database DatabaseConfig `yaml:"database"`
-	Server   ServerConfig   `yaml:"server"`
-}
+	Database struct {
+		Host     string `yaml:"host"`
+		Port     int    `yaml:"port"`
+		User     string `yaml:"user"`
+		Password string `yaml:"password"`
+		DBName   string `yaml:"dbname"`
+		SSLMode  string `yaml:"sslmode"`
+	} `yaml:"database"`
 
-type DatabaseConfig struct {
-	Host     string `yaml:"host"`
-	Port     int    `yaml:"port"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-	DBName   string `yaml:"dbname"`
-	SSLMode  string `yaml:"sslmode"`
-}
+	Server struct {
+		Address string `yaml:"address"`
+	} `yaml:"server"`
 
-type ServerConfig struct {
-	Address string `yaml:"address"`
+	Deal struct {
+		LotusPath  string `yaml:"lotus_path"`
+		BoostPath  string `yaml:"boost_path"`
+		DealDelay  int    `yaml:"deal_delay"`  // 发单间隔时间（毫秒）
+	} `yaml:"deal"`
 }
 
 // DefaultConfig returns a configuration with default values
 func DefaultConfig() *Config {
 	return &Config{
-		Database: DatabaseConfig{
+		Database: struct {
+			Host     string `yaml:"host"`
+			Port     int    `yaml:"port"`
+			User     string `yaml:"user"`
+			Password string `yaml:"password"`
+			DBName   string `yaml:"dbname"`
+			SSLMode  string `yaml:"sslmode"`
+		}{
 			Host:     "localhost",
 			Port:     5432,
 			User:     "postgres",
@@ -37,8 +47,19 @@ func DefaultConfig() *Config {
 			DBName:   "lotus_car",
 			SSLMode:  "disable",
 		},
-		Server: ServerConfig{
+		Server: struct {
+			Address string `yaml:"address"`
+		}{
 			Address: ":8080",
+		},
+		Deal: struct {
+			LotusPath  string `yaml:"lotus_path"`
+			BoostPath  string `yaml:"boost_path"`
+			DealDelay  int    `yaml:"deal_delay"`  // 发单间隔时间（毫秒）
+		}{
+			LotusPath:  "",
+			BoostPath:  "",
+			DealDelay:  0,
 		},
 	}
 }

@@ -36,11 +36,10 @@ GLOBAL OPTIONS:
 
 ./lotus-car regenerate --id=86e7354d-d6ad-4fa3-b403-0790a567a3b4 --parent=/Users/max/data/dataset/1/raw --out-dir=/Users/max/data/dataset/car-regenerate
 
-./lotus-car deal \
-  --miner f01234 \
-  --from-wallet f1abc... \
-  --api "FULLNODE_API_INFO=eyJhbGci..." \
-  --really-do-it
+./lotus-car deal --use-boost --miner=f01824405 --from-wallet=f1fpvwsdrxxvd334s3jfeoinistcmbgxxyuqseywa --api="https://api.node.glif.io" --batch-size=1
+
+./lotus-car index --source-dir /Users/max/data/dataset/1/raw --output-dir /Users/max/data/dataset/1 --index-file 1.json
+
 
 The input file can be a text file that contains a list of file information SORTED by the path. i.e.
 ```json

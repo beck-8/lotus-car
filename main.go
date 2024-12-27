@@ -34,11 +34,6 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-type CommpResult struct {
-	commp     string
-	pieceSize uint64
-}
-
 type Result struct {
 	Ipld *util.FsNode
 	// FileSize  uint64
@@ -60,14 +55,6 @@ func init() {
 }
 
 const BufSize = (4 << 20) / 128 * 127
-
-// 本地 lotus 二进制文件位置
-const localLotusPath = "/Users/max/workspace/filecoin/lotus-optimized/lotus"
-
-const localBoostPath = "/Users/max/workspace/filecoin/boost/boost --repo=/Users/max/.boost-client"
-
-// 每轮重试的间隔时间
-const dealDelay = 100 * time.Millisecond
 
 // execCmd 执行命令并返回输出
 func execCmd(env, c string) (string, error) {
@@ -504,6 +491,103 @@ func main() {
 				},
 			},
 			{
+				Name:  "index",
+				Usage: "Index all files in target directory and save to json file",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "source-dir",
+						Usage:    "Source directory to index",
+						Required: true,
+					},
+					&cli.StringFlag{
+						Name:     "output-dir",
+						Usage:    "Output directory to save index file",
+						Required: true,
+					},
+					&cli.StringFlag{
+						Name:     "index-file",
+						Usage:    "Index file name",
+						Required: true,
+					},
+				},
+				Action: func(c *cli.Context) error {
+					sourceDir := c.String("source-dir")
+					outputDir := c.String("output-dir")
+					indexFile := c.String("index-file")
+
+					// Check if directories exist
+					if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
+						return fmt.Errorf("source directory does not exist: %s", sourceDir)
+					}
+					if _, err := os.Stat(outputDir); os.IsNotExist(err) {
+						return fmt.Errorf("parent directory does not exist: %s", outputDir)
+					}
+
+					// List all files
+					var files []string
+					err := filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+						if err != nil {
+							return err
+						}
+						if !info.IsDir() {
+							files = append(files, path)
+						}
+						return nil
+					})
+					if err != nil {
+						return fmt.Errorf("error walking through directory: %v", err)
+					}
+
+					// Create JSON array
+					var jsonArr []map[string]interface{}
+					for _, file := range files {
+						info, err := os.Stat(file)
+						if err != nil {
+							return fmt.Errorf("error getting file info: %v", err)
+						}
+
+						fileInfo := map[string]interface{}{
+							"Path": file,
+							"Size": info.Size(),
+						}
+						jsonArr = append(jsonArr, fileInfo)
+						fmt.Printf("Indexed: %s, size: %s\n", file, util.FormatSize(info.Size()))
+					}
+
+					// Write to JSON file
+					outputFile := filepath.Join(outputDir, indexFile)
+
+					// Remove existing file if exists
+					if _, err := os.Stat(outputFile); err == nil {
+						fmt.Printf("Removing existing index file: %s\n", outputFile)
+						err = os.Remove(outputFile)
+						if err != nil {
+							return fmt.Errorf("error removing existing index file: %v", err)
+						}
+					}
+
+					// Create parent directory if not exists
+					if err := os.MkdirAll(outputDir, 0755); err != nil {
+						return fmt.Errorf("error creating output directory: %v", err)
+					}
+
+					// Write JSON data
+					fmt.Printf("Writing index file: %s\n", outputFile)
+					jsonData, err := json.MarshalIndent(jsonArr, "", "    ")
+					if err != nil {
+						return fmt.Errorf("error marshaling JSON: %v", err)
+					}
+
+					err = os.WriteFile(outputFile, jsonData, 0644)
+					if err != nil {
+						return fmt.Errorf("error writing index file: %v", err)
+					}
+
+					fmt.Printf("Successfully indexed %d files: %s\n", len(jsonArr), outputFile)
+					return nil
+				},
+			},
+			{
 				Name:  "init-db",
 				Usage: "Initialize the database",
 				Action: func(c *cli.Context) error {
@@ -621,8 +705,8 @@ func main() {
 					},
 					&cli.Int64Flag{
 						Name:  "duration",
-						Value: 1512000,
-						Usage: "Deal duration in epochs",
+						Value: 3513600,
+						Usage: "Deal duration in epochs (default: 3.55 years)",
 					},
 					&cli.BoolFlag{
 						Name:  "use-boost",
@@ -637,6 +721,11 @@ func main() {
 						Name:     "api",
 						Usage:    "FULLNODE_API_INFO",
 						Required: true,
+					},
+					&cli.IntFlag{
+						Name:  "batch-size",
+						Value: 0,
+						Usage: "Number of deals to send in this batch (0 means all pending deals)",
 					},
 				},
 				Action: func(c *cli.Context) error {
@@ -670,39 +759,59 @@ func main() {
 
 					miner := c.String("miner")
 					fromWallet := c.String("from-wallet")
-					startEpochDays := c.Int64("start-epoch-day")
+					startEpochDay := c.Int64("start-epoch-day")
 					duration := c.Int64("duration")
-					useBoost := c.Bool("use-boost")
 					reallyDoIt := c.Bool("really-do-it")
 					api := c.String("api")
+					batchSize := c.Int("batch-size")
 
-					startEpoch := uint64(time.Now().Unix() + startEpochDays*24*60*60)
+					log.Println("Start epoch days: " + strconv.FormatInt(startEpochDay, 10))
+					startEpoch := util.CurrentHeight() + (startEpochDay * 2880)
 
-					// Process each pending deal
+					// Filter pending deals
+					var pendingDeals []db.CarFile
 					for _, file := range files {
-						if file.DealStatus != db.DealStatusPending {
-							continue
+						if file.DealStatus == db.DealStatusPending {
+							pendingDeals = append(pendingDeals, file)
 						}
+					}
+
+					// Determine how many deals to process
+					totalPending := len(pendingDeals)
+					if totalPending == 0 {
+						fmt.Println("No pending deals found")
+						return nil
+					}
+
+					dealsToProcess := totalPending
+					if batchSize > 0 && batchSize < totalPending {
+						dealsToProcess = batchSize
+					}
+
+					fmt.Printf("Found %d pending deals, will process %d deals\n", totalPending, dealsToProcess)
+
+					// Process deals
+					successCount := 0
+					failureCount := 0
+
+					for i := 0; i < dealsToProcess; i++ {
+						file := pendingDeals[i]
 
 						// Prepare deal command
-						cmd := ""
-						if useBoost {
-							cmd = fmt.Sprintf("%s client deal --verified-deal=false --provider=%s "+
-								"--commp=%s --piece-size=%d --car-size=%d "+
-								"--payload-cid=%s --storage-price-per-epoch=0 "+
-								"--start-epoch=%d --duration=%d --wallet=%s %s",
-								localBoostPath, miner, file.CommP, file.PieceSize, file.CarSize,
-								file.DataCid, startEpoch, duration, fromWallet, file.FilePath)
-						} else {
-							cmd = fmt.Sprintf("%s client deal --verified-deal=false --provider=%s "+
-								"--piece-cid=%s --piece-size=%d --car-size=%d "+
-								"--payload-cid=%s --start-epoch=%d --duration=%d "+
-								"--wallet=%s %s",
-								localLotusPath, miner, file.PieceCid, file.PieceSize, file.CarSize,
-								file.DataCid, startEpoch, duration, fromWallet, file.FilePath)
-						}
+						cmd := cfg.Deal.BoostPath + " offline-deal " +
+							"--provider=" + miner + " " +
+							"--commp=" + file.CommP + " " +
+							// "--car-size=" + strconv.FormatUint(file.CarSize, 10) + " " +
+							"--piece-size=" + strconv.FormatUint(file.PieceSize, 10) + " " +
+							"--wallet=" + fromWallet + " " +
+							"--payload-cid=" + file.DataCid + " " +
+							"--verified=true " +
+							"--duration=" + strconv.FormatInt(duration, 10) + " " +
+							"--storage-price=0 " +
+							"--start-epoch=" + strconv.FormatInt(startEpoch, 10)
 
-						fmt.Printf("Processing file %s with command: %s\n", file.FilePath, cmd)
+						fmt.Printf("[%d/%d] Processing file %s\n", i+1, dealsToProcess, file.FilePath)
+						fmt.Printf("Command: %s\n", cmd)
 
 						if reallyDoIt {
 							dealResponse, err := execCmd(api, cmd)
@@ -714,6 +823,7 @@ func main() {
 								if err != nil {
 									fmt.Printf("Failed to update deal status: %v\n", err)
 								}
+								failureCount++
 								continue
 							}
 
@@ -724,10 +834,20 @@ func main() {
 							if err != nil {
 								fmt.Printf("Failed to update deal status: %v\n", err)
 							}
+							successCount++
 
 							// Add delay between deals
-							time.Sleep(dealDelay)
+							time.Sleep(time.Duration(cfg.Deal.DealDelay) * time.Millisecond)
+							log.Printf("[%d/%d] Delayed for %d seconds\n", i+1, dealsToProcess, cfg.Deal.DealDelay/1000)
 						}
+					}
+
+					// Print summary
+					if reallyDoIt {
+						fmt.Printf("\nDeal Summary:\n")
+						fmt.Printf("Total Processed: %d\n", dealsToProcess)
+						fmt.Printf("Successful: %d\n", successCount)
+						fmt.Printf("Failed: %d\n", failureCount)
 					}
 
 					return nil
