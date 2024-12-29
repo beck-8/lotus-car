@@ -212,7 +212,7 @@ func (d *Database) ListFiles() ([]CarFile, error) {
 	rows, err := d.db.Query(`
 		SELECT id, comm_p, data_cid, piece_cid, piece_size, car_size, file_path, raw_files, deal_status, deal_time, deal_error, deal_id, created_at
 		FROM files
-		ORDER BY id DESC
+		ORDER BY created_at ASC
 	`)
 	if err != nil {
 		return nil, err
@@ -546,7 +546,7 @@ func (d *Database) GetDealsByStatus(status string) ([]Deal, error) {
 		       provider_collateral, status, created_at, updated_at
 		FROM deals
 		WHERE status = $1
-		ORDER BY created_at DESC
+		ORDER BY created_at ASC
 	`, status)
 	if err != nil {
 		return nil, err

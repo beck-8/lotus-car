@@ -2,7 +2,6 @@ package deal
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"log"
 	"os"
@@ -152,7 +151,6 @@ func Command() *cli.Command {
 				return fmt.Errorf("failed to load config: %v", err)
 			}
 
-			ctx := context.Background()
 			miner := c.String("miner")
 			fromWallet := c.String("from-wallet")
 			api := c.String("api")
@@ -163,7 +161,7 @@ func Command() *cli.Command {
 			interval := c.Int64("interval")
 
 			for {
-				if err := sendDeals(ctx, cfg, miner, fromWallet, api, startEpochDay, duration, total, reallyDoIt); err != nil {
+				if err := sendDeals(cfg, miner, fromWallet, api, startEpochDay, duration, total, reallyDoIt); err != nil {
 					log.Printf("Error sending deals: %v", err)
 				}
 
@@ -179,7 +177,7 @@ func Command() *cli.Command {
 	}
 }
 
-func sendDeals(ctx context.Context, cfg *config.Config, miner, fromWallet, api string, startEpochDay, duration int64, total int, reallyDoIt bool) error {
+func sendDeals(cfg *config.Config, miner, fromWallet, api string, startEpochDay, duration int64, total int, reallyDoIt bool) error {
 	// Initialize database connection
 	dbConfig := &db.DBConfig{
 		Host:     cfg.Database.Host,
