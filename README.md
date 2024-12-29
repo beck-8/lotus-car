@@ -65,14 +65,20 @@ Edit the config file, add postgres connection information, deal and API server c
 - **--parent**：original file directory
 - **--out-dir**：car file output directory
 
-### Make deals using boost
+### Send deals
 ```sh
-./lotus-car deal --miner=f0xxxxxx --from-wallet=f1fpvwsdrxxvd334s3jfeoinistcmbgxxyuqsxxxx --api="https://api.node.glif.io" --total=1
+# Run once
+./lotus-car deal --miner=f01234 --from-wallet=f1... --api="https://api.node.glif.io" --total=10 --really-do-it
+
+# Run every 1 hour (3600 seconds)
+./lotus-car deal --miner=f01234 --from-wallet=f1... --api="https://api.node.glif.io" --total=10 --really-do-it --interval=3600
 ```
-- **--miner**：miner address
-- **--from-wallet**：client wallet address
-- **--api**：boost api url
-- **--total**：Number of deals to send in total (default: 1)
+- **--miner**：Storage provider ID
+- **--from-wallet**：Client wallet address
+- **--api**：Lotus API endpoint
+- **--total**：Number of deals to send (default: 1)
+- **--really-do-it**：Actually send the deals (default: false)
+- **--interval**：Loop interval in seconds, 0 means run once (default: 0)
 
 ### Index source files
 ```sh
@@ -97,6 +103,18 @@ The input file can be a text file that contains a list of file information SORTE
 ```
 
 The tmp dir is useful when the dataset source is on slow storage such as NFS or S3FS/Goofys mount.
+
+### Import deals
+```sh
+# Run once
+./lotus-car import-deal --car-dir=/ipfsdata/car --boost-path=/usr/local/bin/boost
+
+# Run every 300 seconds (5 minutes)
+./lotus-car import-deal --car-dir=/ipfsdata/car --boost-path=/usr/local/bin/boost --interval=300
+```
+- **--car-dir**：car file directory
+- **--boost-path**：path to boost executable
+- **--interval**：loop interval in seconds (0 means run once)
 
 ## API Server
 
