@@ -28,6 +28,11 @@ func Command() *cli.Command {
 				Usage: "Path to boostd executable",
 				Value: "boostd",
 			},
+			&cli.IntFlag{
+				Name:  "total",
+				Usage: "Number of deals to import (0 means all)",
+				Value: 0,
+			},
 			&cli.Int64Flag{
 				Name:  "interval",
 				Usage: "Loop interval in seconds (0 means run once)",
@@ -43,10 +48,11 @@ func Command() *cli.Command {
 
 			carDir := c.String("car-dir")
 			boostdPath := c.String("boostd-path")
+			total := c.Int("total")
 			interval := c.Int64("interval")
 
 			for {
-				if err := importDeals(cfg, carDir, boostdPath); err != nil {
+				if err := importDeals(cfg, carDir, boostdPath, total); err != nil {
 					log.Printf("Error importing deals: %v", err)
 				}
 
@@ -62,7 +68,7 @@ func Command() *cli.Command {
 	}
 }
 
-func importDeals(cfg *config.Config, carDir, boostdPath string) error {
+func importDeals(cfg *config.Config, carDir, boostdPath string, total int) error {
 	// Initialize database connection
 	dbConfig := &db.DBConfig{
 		Host:     cfg.Database.Host,
@@ -90,15 +96,27 @@ func importDeals(cfg *config.Config, carDir, boostdPath string) error {
 		return nil
 	}
 
-	log.Printf("Found %d proposed deals", len(deals))
+	// Determine how many deals to process
+	dealsToProcess := len(deals)
+	if total > 0 && total < dealsToProcess {
+		dealsToProcess = total
+	}
 
-	for _, deal := range deals {
+	log.Printf("Found %d proposed deals, will process %d deals", len(deals), dealsToProcess)
+
+	successCount := 0
+	failureCount := 0
+
+	for i := 0; i < dealsToProcess; i++ {
+		deal := deals[i]
+
 		// Construct car file path
 		carFile := filepath.Join(carDir, deal.CommP+".car")
 
 		// Check if car file exists
 		if _, err := os.Stat(carFile); os.IsNotExist(err) {
 			log.Printf("Car file not found for deal %s: %s", deal.UUID, carFile)
+			failureCount++
 			continue
 		}
 
@@ -106,10 +124,11 @@ func importDeals(cfg *config.Config, carDir, boostdPath string) error {
 		cmd := exec.Command(boostdPath, "import-data", deal.UUID, carFile)
 
 		// Run the command
-		log.Printf("Importing deal %s with car file %s", deal.UUID, carFile)
+		log.Printf("[%d/%d] Importing deal %s with car file %s", i+1, dealsToProcess, deal.UUID, carFile)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			log.Printf("Failed to import deal %s: %v\nOutput: %s", deal.UUID, err, string(output))
+			failureCount++
 			continue
 		}
 
@@ -118,12 +137,24 @@ func importDeals(cfg *config.Config, carDir, boostdPath string) error {
 		// Update deal status to imported
 		if err = database.UpdateDealStatus(deal.UUID, "imported"); err != nil {
 			log.Printf("Failed to update deal status: %v", err)
+			failureCount++
+			continue
 		}
 
-		// Wait for 10 seconds
-		log.Printf("Waiting %d seconds before next import...", 10*time.Second)
-		time.Sleep(10 * time.Second)
+		successCount++
+
+		// Wait before next import if not the last one
+		if i < dealsToProcess-1 {
+			log.Printf("[%d/%d] Waiting %d seconds before next import...", i+1, dealsToProcess, 10)
+			time.Sleep(10 * time.Second)
+		}
 	}
+
+	// Print summary
+	log.Printf("\nImport Summary:")
+	log.Printf("Total Processed: %d", dealsToProcess)
+	log.Printf("Successful: %d", successCount)
+	log.Printf("Failed: %d", failureCount)
 
 	return nil
 }
