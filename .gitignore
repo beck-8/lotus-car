@@ -29,3 +29,4 @@ vendor
 api.http
 
 config.yaml
+config.*.yaml
