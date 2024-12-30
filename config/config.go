@@ -23,14 +23,14 @@ type Config struct {
 	} `yaml:"server"`
 
 	Deal struct {
-		LotusPath  string `yaml:"lotus_path"`
-		BoostPath  string `yaml:"boost_path"`
-		DealDelay  int    `yaml:"deal_delay"`  // 发单间隔时间（毫秒）
+		LotusPath string `yaml:"lotus_path"`
+		BoostPath string `yaml:"boost_path"`
+		DealDelay int    `yaml:"deal_delay"` // 发单间隔时间（毫秒）
 	} `yaml:"deal"`
 
 	Auth struct {
-		JWTSecret string `yaml:"jwt_secret"`
-		TokenExpireHours int `yaml:"token_expire_hours"`
+		JWTSecret        string `yaml:"jwt_secret"`
+		TokenExpireHours int    `yaml:"token_expire_hours"`
 	} `yaml:"auth"`
 }
 
@@ -58,19 +58,19 @@ func DefaultConfig() *Config {
 			Address: ":8080",
 		},
 		Deal: struct {
-			LotusPath  string `yaml:"lotus_path"`
-			BoostPath  string `yaml:"boost_path"`
-			DealDelay  int    `yaml:"deal_delay"`  // 发单间隔时间（毫秒）
+			LotusPath string `yaml:"lotus_path"`
+			BoostPath string `yaml:"boost_path"`
+			DealDelay int    `yaml:"deal_delay"` // 发单间隔时间（毫秒）
 		}{
-			LotusPath:  "",
-			BoostPath:  "",
-			DealDelay:  0,
+			LotusPath: "",
+			BoostPath: "",
+			DealDelay: 0,
 		},
 		Auth: struct {
-			JWTSecret string `yaml:"jwt_secret"`
-			TokenExpireHours int `yaml:"token_expire_hours"`
+			JWTSecret        string `yaml:"jwt_secret"`
+			TokenExpireHours int    `yaml:"token_expire_hours"`
 		}{
-			JWTSecret: "secret",
+			JWTSecret:        "secret",
 			TokenExpireHours: 2,
 		},
 	}

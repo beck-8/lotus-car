@@ -118,6 +118,10 @@ func Command() *cli.Command {
 				Required: true,
 				Value:    "https://api.node.glif.io",
 			},
+			&cli.StringFlag{
+				Name:  "boost-client-path",
+				Usage: "Path to boost client executable (overrides config file)",
+			},
 			&cli.Int64Flag{
 				Name:  "start-epoch-day",
 				Value: 10,
@@ -154,14 +158,20 @@ func Command() *cli.Command {
 			miner := c.String("miner")
 			fromWallet := c.String("from-wallet")
 			api := c.String("api")
+			boostClientPath := c.String("boost-client-path")
 			startEpochDay := c.Int64("start-epoch-day")
 			duration := c.Int64("duration")
 			total := c.Int("total")
 			reallyDoIt := c.Bool("really-do-it")
 			interval := c.Int64("interval")
 
+			// Use command line boost path if provided, otherwise use config
+			if boostClientPath == "" {
+				boostClientPath = cfg.Deal.BoostPath
+			}
+
 			for {
-				if err := sendDeals(cfg, miner, fromWallet, api, startEpochDay, duration, total, reallyDoIt); err != nil {
+				if err := sendDeals(cfg, miner, fromWallet, api, boostClientPath, startEpochDay, duration, total, reallyDoIt); err != nil {
 					log.Printf("Error sending deals: %v", err)
 				}
 
@@ -177,7 +187,7 @@ func Command() *cli.Command {
 	}
 }
 
-func sendDeals(cfg *config.Config, miner, fromWallet, api string, startEpochDay, duration int64, total int, reallyDoIt bool) error {
+func sendDeals(cfg *config.Config, miner, fromWallet, api, boostClientPath string, startEpochDay, duration int64, total int, reallyDoIt bool) error {
 	// Initialize database connection
 	dbConfig := &db.DBConfig{
 		Host:     cfg.Database.Host,
@@ -233,7 +243,7 @@ func sendDeals(cfg *config.Config, miner, fromWallet, api string, startEpochDay,
 		file := pendingDeals[i]
 
 		// Prepare deal command
-		cmd := cfg.Deal.BoostPath + " offline-deal " +
+		cmd := boostClientPath + " offline-deal " +
 			"--provider=" + miner + " " +
 			"--commp=" + file.CommP + " " +
 			"--piece-size=" + strconv.FormatUint(file.PieceSize, 10) + " " +
