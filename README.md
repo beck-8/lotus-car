@@ -76,12 +76,11 @@ baga6ea4seaqaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 baga6ea4seaqbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 ```
 
-
 ```sh
-# Run once with total limit
+# Run once with pending files and total limit
 ./lotus-car deal --miner=f01234 --from-wallet=f1... --api="https://api.node.glif.io" --total=10 --really-do-it --boost-client-path=/usr/local/bin/boost
 
-# Run every 1 hour (3600 seconds)
+# Run every 1 hour (3600 seconds) with pending files and total limit
 ./lotus-car deal --miner=f01234 --from-wallet=f1... --api="https://api.node.glif.io" --total=10 --really-do-it --interval=3600 --boost-client-path=/usr/local/bin/boost
 ```
 - **--miner**：Storage provider ID
