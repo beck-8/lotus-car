@@ -70,6 +70,14 @@ Edit the config file, add postgres connection information, deal and API server c
 # Run once with specific piece CIDs
 ./lotus-car deal --miner=f01234 --from-wallet=f1... --api="https://api.node.glif.io" --from-piece-cids=/path/to/piece_cids.txt --really-do-it --boost-client-path=/usr/local/bin/boost
 
+piece_cids.txt:
+baga6ea4seaqkue2e4krk6yn44e5m4ypemdhv25zrvva7v6ge2vond6agnhpe4ma
+baga6ea4seaqaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+baga6ea4seaqbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+```
+
+
+```sh
 # Run once with total limit
 ./lotus-car deal --miner=f01234 --from-wallet=f1... --api="https://api.node.glif.io" --total=10 --really-do-it --boost-client-path=/usr/local/bin/boost
 
