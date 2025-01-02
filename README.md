@@ -67,19 +67,25 @@ Edit the config file, add postgres connection information, deal and API server c
 
 ### Send deals
 ```sh
-# Run once
-./lotus-car deal --miner=f01234 --from-wallet=f1... --api="https://api.node.glif.io" --total=10 --really-do-it --interval=0 --boost-client-path=/usr/local/bin/boost
+# Run once with specific piece CIDs
+./lotus-car deal --miner=f01234 --from-wallet=f1... --api="https://api.node.glif.io" --from-piece-cids=/path/to/piece_cids.txt --really-do-it --boost-client-path=/usr/local/bin/boost
+
+# Run once with total limit
+./lotus-car deal --miner=f01234 --from-wallet=f1... --api="https://api.node.glif.io" --total=10 --really-do-it --boost-client-path=/usr/local/bin/boost
 
 # Run every 1 hour (3600 seconds)
 ./lotus-car deal --miner=f01234 --from-wallet=f1... --api="https://api.node.glif.io" --total=10 --really-do-it --interval=3600 --boost-client-path=/usr/local/bin/boost
 ```
 - **--miner**：Storage provider ID
 - **--from-wallet**：Client wallet address
-- **--api**：Lotus API endpoint
-- **--total**：Number of deals to send (default: 1)
+- **--api**：Lotus API endpoint (default: "https://api.node.glif.io")
+- **--from-piece-cids**：Path to file containing piece CIDs (one per line). When specified, --total is ignored
+- **--total**：Number of deals to send (default: 1). Ignored when --from-piece-cids is specified
 - **--really-do-it**：Actually send the deals (default: false)
 - **--interval**：Loop interval in seconds, 0 means run once (default: 0)
-- **--boost-client-path**：Path to boost executable
+- **--boost-client-path**：Path to boost executable (overrides config file)
+- **--start-epoch-day**：Start epoch in days (default: 10)
+- **--duration**：Deal duration in epochs (default: 3513600, about 3.55 years)
 
 ### Index source files
 ```sh
@@ -139,4 +145,3 @@ The tmp dir is useful when the dataset source is on slow storage such as NFS or 
 ## Database migration
 ```sh
 psql -d lotus_car -f db/migrations/rename_car_files_to_files.sql
-```

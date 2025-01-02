@@ -122,6 +122,10 @@ func Command() *cli.Command {
 				Name:  "boost-client-path",
 				Usage: "Path to boost client executable (overrides config file)",
 			},
+			&cli.StringFlag{
+				Name:  "from-piece-cids",
+				Usage: "Path to file containing piece CIDs (one per line)",
+			},
 			&cli.Int64Flag{
 				Name:  "start-epoch-day",
 				Value: 10,
@@ -159,6 +163,7 @@ func Command() *cli.Command {
 			fromWallet := c.String("from-wallet")
 			api := c.String("api")
 			boostClientPath := c.String("boost-client-path")
+			fromPieceCids := c.String("from-piece-cids")
 			startEpochDay := c.Int64("start-epoch-day")
 			duration := c.Int64("duration")
 			total := c.Int("total")
@@ -171,7 +176,7 @@ func Command() *cli.Command {
 			}
 
 			for {
-				if err := sendDeals(cfg, miner, fromWallet, api, boostClientPath, startEpochDay, duration, total, reallyDoIt); err != nil {
+				if err := sendDeals(cfg, miner, fromWallet, api, boostClientPath, fromPieceCids, startEpochDay, duration, total, reallyDoIt); err != nil {
 					log.Printf("Error sending deals: %v", err)
 				}
 
@@ -187,7 +192,7 @@ func Command() *cli.Command {
 	}
 }
 
-func sendDeals(cfg *config.Config, miner, fromWallet, api, boostClientPath string, startEpochDay, duration int64, total int, reallyDoIt bool) error {
+func sendDeals(cfg *config.Config, miner, fromWallet, api, boostClientPath, fromPieceCids string, startEpochDay, duration int64, total int, reallyDoIt bool) error {
 	// Initialize database connection
 	dbConfig := &db.DBConfig{
 		Host:     cfg.Database.Host,
@@ -204,44 +209,89 @@ func sendDeals(cfg *config.Config, miner, fromWallet, api, boostClientPath strin
 	}
 	defer database.Close()
 
-	// Get pending deals from database
-	files, err := database.ListFiles()
-	if err != nil {
-		return fmt.Errorf("failed to list car files: %v", err)
-	}
-
 	log.Printf("Start epoch days: %d", startEpochDay)
 	startEpoch := util.CurrentHeight() + (startEpochDay * 2880)
 
-	// Filter pending deals
 	var pendingDeals []db.CarFile
-	for _, file := range files {
-		if file.DealStatus == db.DealStatusPending {
-			pendingDeals = append(pendingDeals, file)
+
+	if fromPieceCids != "" {
+		// Read piece CIDs from file
+		content, err := os.ReadFile(fromPieceCids)
+		if err != nil {
+			return fmt.Errorf("failed to read piece CIDs file: %v", err)
+		}
+
+		// Parse piece CIDs
+		var pieceCids []string
+		lines := strings.Split(string(content), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line != "" {
+				pieceCids = append(pieceCids, line)
+			}
+		}
+
+		if len(pieceCids) == 0 {
+			return fmt.Errorf("no piece CIDs found in file: %s", fromPieceCids)
+		}
+
+		log.Printf("Loaded %d piece CIDs from file", len(pieceCids))
+
+		// Query files by piece CIDs
+		files, err := database.GetFilesByPieceCids(pieceCids)
+		if err != nil {
+			return fmt.Errorf("failed to get files by piece CIDs: %v", err)
+		}
+
+		pendingDeals = files
+
+		// Log unmatched piece CIDs
+		foundCids := make(map[string]bool)
+		for _, file := range files {
+			foundCids[file.CommP] = true
+		}
+
+		var unmatchedCids []string
+		for _, cid := range pieceCids {
+			if !foundCids[cid] {
+				unmatchedCids = append(unmatchedCids, cid)
+			}
+		}
+
+		if len(unmatchedCids) > 0 {
+			log.Printf("Warning: %d piece CIDs from file not found in database:", len(unmatchedCids))
+			for _, cid := range unmatchedCids {
+				log.Printf("  - %s", cid)
+			}
+		}
+
+		log.Printf("Found %d matching files for specified piece CIDs", len(pendingDeals))
+	} else {
+		// Get pending deals from database
+		files, err := database.ListPendingFiles()
+		if err != nil {
+			return fmt.Errorf("failed to list pending files: %v", err)
+		}
+
+		pendingDeals = files
+
+		// Apply total limit if no piece CIDs specified
+		if total > 0 && total < len(pendingDeals) {
+			pendingDeals = pendingDeals[:total]
 		}
 	}
 
-	// Determine how many deals to process
-	totalPending := len(pendingDeals)
-	if totalPending == 0 {
-		log.Println("No pending deals found")
+	if len(pendingDeals) == 0 {
+		log.Println("No files found to process")
 		return nil
 	}
 
-	dealsToProcess := totalPending
-	if total > 0 && total < totalPending {
-		dealsToProcess = total
-	}
+	log.Printf("Will process %d deals", len(pendingDeals))
 
-	log.Printf("Found %d pending deals, will process %d deals", totalPending, dealsToProcess)
-
-	// Process deals
 	successCount := 0
 	failureCount := 0
 
-	for i := 0; i < dealsToProcess; i++ {
-		file := pendingDeals[i]
-
+	for i, file := range pendingDeals {
 		// Prepare deal command
 		cmd := boostClientPath + " offline-deal " +
 			"--provider=" + miner + " " +
@@ -254,7 +304,7 @@ func sendDeals(cfg *config.Config, miner, fromWallet, api, boostClientPath strin
 			"--storage-price=0 " +
 			"--start-epoch=" + strconv.FormatInt(startEpoch, 10)
 
-		log.Printf("[%d/%d] Processing file %s", i+1, dealsToProcess, file.FilePath)
+		log.Printf("[%d/%d] Processing file %s", i+1, len(pendingDeals), file.FilePath)
 		log.Printf("Command: %s", cmd)
 
 		if reallyDoIt {
@@ -294,9 +344,9 @@ func sendDeals(cfg *config.Config, miner, fromWallet, api, boostClientPath strin
 			successCount++
 
 			// Add delay between deals
-			if i < dealsToProcess-1 {
+			if i < len(pendingDeals)-1 {
 				time.Sleep(time.Duration(cfg.Deal.DealDelay) * time.Millisecond)
-				log.Printf("[%d/%d] Delayed for %d seconds", i+1, dealsToProcess, cfg.Deal.DealDelay/1000)
+				log.Printf("[%d/%d] Delayed for %d seconds", i+1, len(pendingDeals), cfg.Deal.DealDelay/1000)
 			}
 		}
 	}
@@ -304,7 +354,7 @@ func sendDeals(cfg *config.Config, miner, fromWallet, api, boostClientPath strin
 	// Print summary
 	if reallyDoIt {
 		log.Printf("\nDeal Summary:")
-		log.Printf("Total Processed: %d", dealsToProcess)
+		log.Printf("Total Processed: %d", len(pendingDeals))
 		log.Printf("Successful: %d", successCount)
 		log.Printf("Failed: %d", failureCount)
 	}

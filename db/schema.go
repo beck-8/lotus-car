@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -542,14 +543,15 @@ func (d *Database) ListDeals() ([]Deal, error) {
 
 func (d *Database) GetDealsByStatus(status string) ([]Deal, error) {
 	rows, err := d.db.Query(`
-		SELECT uuid, storage_provider, client_wallet, payload_cid, commp, start_epoch, end_epoch,
-		       provider_collateral, status, created_at, updated_at
+		SELECT uuid, storage_provider, client_wallet, payload_cid, commp, 
+			   start_epoch, end_epoch, provider_collateral, status, 
+			   created_at, updated_at
 		FROM deals
 		WHERE status = $1
-		ORDER BY created_at ASC
+		ORDER BY created_at DESC
 	`, status)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query deals: %v", err)
 	}
 	defer rows.Close()
 
@@ -570,9 +572,96 @@ func (d *Database) GetDealsByStatus(status string) ([]Deal, error) {
 			&deal.UpdatedAt,
 		)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to scan deal: %v", err)
 		}
 		deals = append(deals, deal)
 	}
+
 	return deals, nil
+}
+
+func (d *Database) GetFilesByPieceCids(pieceCids []string) ([]CarFile, error) {
+	query := `
+		SELECT id, comm_p, data_cid, piece_cid, piece_size, car_size, 
+			   file_path, raw_files, deal_status, deal_time, deal_error, 
+			   deal_id, created_at
+		FROM files
+		WHERE piece_cid = ANY($1)
+		ORDER BY created_at DESC
+	`
+
+	rows, err := d.db.Query(query, pq.Array(pieceCids))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query files by piece CIDs: %v", err)
+	}
+	defer rows.Close()
+
+	var files []CarFile
+	for rows.Next() {
+		var file CarFile
+		err := rows.Scan(
+			&file.ID,
+			&file.CommP,
+			&file.DataCid,
+			&file.PieceCid,
+			&file.PieceSize,
+			&file.CarSize,
+			&file.FilePath,
+			&file.RawFiles,
+			&file.DealStatus,
+			&file.DealTime,
+			&file.DealError,
+			&file.DealID,
+			&file.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan file: %v", err)
+		}
+		files = append(files, file)
+	}
+
+	return files, nil
+}
+
+func (d *Database) ListPendingFiles() ([]CarFile, error) {
+	query := `
+		SELECT id, comm_p, data_cid, piece_cid, piece_size, car_size, 
+			   file_path, raw_files, deal_status, deal_time, deal_error, 
+			   deal_id, created_at
+		FROM files
+		WHERE deal_status = $1
+		ORDER BY created_at DESC
+	`
+
+	rows, err := d.db.Query(query, DealStatusPending)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query pending files: %v", err)
+	}
+	defer rows.Close()
+
+	var files []CarFile
+	for rows.Next() {
+		var file CarFile
+		err := rows.Scan(
+			&file.ID,
+			&file.CommP,
+			&file.DataCid,
+			&file.PieceCid,
+			&file.PieceSize,
+			&file.CarSize,
+			&file.FilePath,
+			&file.RawFiles,
+			&file.DealStatus,
+			&file.DealTime,
+			&file.DealError,
+			&file.DealID,
+			&file.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan file: %v", err)
+		}
+		files = append(files, file)
+	}
+
+	return files, nil
 }
