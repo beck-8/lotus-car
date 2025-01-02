@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/minerdao/lotus-car/cmd/deal"
+	"github.com/minerdao/lotus-car/cmd/export-file"
 	"github.com/minerdao/lotus-car/cmd/generate"
 	importdeal "github.com/minerdao/lotus-car/cmd/import-deal"
 	"github.com/minerdao/lotus-car/cmd/index"
@@ -41,6 +42,7 @@ func main() {
 			importdeal.Command(),
 			server.Command(),
 			user.Command(),
+			exportfile.Command(),
 		},
 	}
 

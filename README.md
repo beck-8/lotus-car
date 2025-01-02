@@ -131,6 +131,21 @@ The tmp dir is useful when the dataset source is on slow storage such as NFS or 
 - **--interval**：loop interval in seconds (0 means run once)
 - **--total**：number of deals to import
 
+### Export files
+```sh
+# Export all successful deals' piece CIDs
+./lotus-car export-file --deal-status=success
+
+# Export piece CIDs for deals in a specific time range
+./lotus-car export-file --deal-status=success --start-time="2025-01-01 00:00:00" --end-time="2025-01-02 00:00:00"
+
+# Export all deals' piece CIDs in a time range (regardless of status)
+./lotus-car export-file --start-time="2025-01-01 00:00:00"
+```
+- **--deal-status**：Filter by deal status (pending/success/failed)
+- **--start-time**：Filter by deal time start (format: YYYY-MM-DD HH:mm:ss)
+- **--end-time**：Filter by deal time end (format: YYYY-MM-DD HH:mm:ss)
+
 ## API Server
 
 ### Start the API server

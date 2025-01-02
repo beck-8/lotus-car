@@ -665,3 +665,73 @@ func (d *Database) ListPendingFiles() ([]CarFile, error) {
 
 	return files, nil
 }
+
+func (d *Database) GetFilesByDealStatus(status string, startTime, endTime *time.Time) ([]CarFile, error) {
+	var query string
+	var args []interface{}
+	var argCount int = 1
+
+	// Base query
+	query = `
+		SELECT id, comm_p, data_cid, piece_cid, piece_size, car_size, 
+			   file_path, raw_files, deal_status, deal_time, deal_error, 
+			   deal_id, created_at
+		FROM files
+		WHERE 1=1
+	`
+
+	// Add status filter if provided
+	if status != "" {
+		query += fmt.Sprintf(" AND deal_status = $%d", argCount)
+		args = append(args, status)
+		argCount++
+	}
+
+	// Add time range filters if provided
+	if startTime != nil {
+		query += fmt.Sprintf(" AND deal_time >= $%d", argCount)
+		args = append(args, startTime)
+		argCount++
+	}
+	if endTime != nil {
+		query += fmt.Sprintf(" AND deal_time <= $%d", argCount)
+		args = append(args, endTime)
+		argCount++
+	}
+
+	// Add order by
+	query += " ORDER BY deal_time DESC"
+
+	// Execute query
+	rows, err := d.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query files: %v", err)
+	}
+	defer rows.Close()
+
+	var files []CarFile
+	for rows.Next() {
+		var file CarFile
+		err := rows.Scan(
+			&file.ID,
+			&file.CommP,
+			&file.DataCid,
+			&file.PieceCid,
+			&file.PieceSize,
+			&file.CarSize,
+			&file.FilePath,
+			&file.RawFiles,
+			&file.DealStatus,
+			&file.DealTime,
+			&file.DealError,
+			&file.DealID,
+			&file.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan file: %v", err)
+		}
+		files = append(files, file)
+	}
+
+	return files, nil
+}
