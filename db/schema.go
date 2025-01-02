@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -20,10 +19,17 @@ type RawFileInfo struct {
 // DealStatus 表示订单发送状态
 type DealStatus string
 
+// RegenerateStatus 表示重新生成状态
+type RegenerateStatus string
+
 const (
 	DealStatusPending DealStatus = "pending" // 未发送或正在发送
 	DealStatusSuccess DealStatus = "success" // 发送成功
 	DealStatusFailed  DealStatus = "failed"  // 发送失败
+
+	RegenerateStatusPending RegenerateStatus = "pending" // 未重新生成或正在重新生成
+	RegenerateStatusSuccess RegenerateStatus = "success" // 重新生成成功
+	RegenerateStatusFailed  RegenerateStatus = "failed"  // 重新生成失败
 )
 
 type Deal struct {
@@ -41,19 +47,21 @@ type Deal struct {
 }
 
 type CarFile struct {
-	ID         string     `json:"id"`
-	CommP      string     `json:"commp"`
-	DataCid    string     `json:"data_cid"`
-	PieceCid   string     `json:"piece_cid"`
-	PieceSize  uint64     `json:"piece_size"`
-	CarSize    uint64     `json:"car_size"`
-	FilePath   string     `json:"file_path"`
-	RawFiles   string     `json:"raw_files"` // JSON string of []RawFileInfo
-	DealStatus DealStatus `json:"deal_status"`
-	DealTime   *time.Time `json:"deal_time"`  // 发单时间
-	DealError  string     `json:"deal_error"` // 发单失败的错误信息
-	DealID     *string    `json:"deal_id"`    // Reference to Deal UUID, nullable
-	CreatedAt  time.Time  `json:"created_at"`
+	ID               string           `json:"id"`
+	CommP            string           `json:"commp"`
+	DataCid          string           `json:"data_cid"`
+	PieceCid         string           `json:"piece_cid"`
+	PieceSize        uint64           `json:"piece_size"`
+	CarSize          uint64           `json:"car_size"`
+	FilePath         string           `json:"file_path"`
+	RawFiles         string           `json:"raw_files"` // JSON string of []RawFileInfo
+	DealStatus       DealStatus       `json:"deal_status"`
+	DealTime         *time.Time       `json:"deal_time"`         // 发单时间
+	DealError        string           `json:"deal_error"`        // 发单失败的错误信息
+	DealID           *string          `json:"deal_id"`           // Reference to Deal UUID, nullable
+	RegenerateStatus RegenerateStatus `json:"regenerate_status"` // 重新生成状态
+	CreatedAt        time.Time        `json:"created_at"`
+	UpdatedAt        time.Time        `json:"updated_at"` // 记录更新时间
 }
 
 type User struct {
@@ -146,7 +154,7 @@ func InitDB(config *DBConfig) (*Database, error) {
 		return nil, fmt.Errorf("failed to create deals table: %v", err)
 	}
 
-	// Create files table if not exists (renamed from car_files)
+	// Create files table if not exists
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS files (
 			id TEXT PRIMARY KEY,
@@ -160,9 +168,10 @@ func InitDB(config *DBConfig) (*Database, error) {
 			deal_status TEXT NOT NULL DEFAULT 'pending',
 			deal_time TIMESTAMP WITH TIME ZONE,
 			deal_error TEXT,
-			deal_id UUID,
+			deal_id UUID REFERENCES deals(uuid),
+			regenerate_status TEXT NOT NULL DEFAULT 'pending',
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			CONSTRAINT fk_deal FOREIGN KEY(deal_id) REFERENCES deals(uuid)
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 		)
 	`)
 	if err != nil {
@@ -199,19 +208,24 @@ func (d *Database) InsertFile(file *CarFile) error {
 		file.DealStatus = DealStatusPending
 	}
 
+	// Set default regenerate status if not provided
+	if file.RegenerateStatus == "" {
+		file.RegenerateStatus = RegenerateStatusPending
+	}
+
 	err := d.db.QueryRow(`
-		INSERT INTO files (id, comm_p, data_cid, piece_cid, piece_size, car_size, file_path, raw_files, deal_status, deal_time, deal_error, deal_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-		RETURNING id, created_at`,
-		file.ID, file.CommP, file.DataCid, file.PieceCid, file.PieceSize, file.CarSize, file.FilePath, file.RawFiles, file.DealStatus, file.DealTime, file.DealError, file.DealID,
-	).Scan(&file.ID, &file.CreatedAt)
+		INSERT INTO files (id, comm_p, data_cid, piece_cid, piece_size, car_size, file_path, raw_files, deal_status, deal_time, deal_error, deal_id, regenerate_status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		RETURNING id, created_at, updated_at`,
+		file.ID, file.CommP, file.DataCid, file.PieceCid, file.PieceSize, file.CarSize, file.FilePath, file.RawFiles, file.DealStatus, file.DealTime, file.DealError, file.DealID, file.RegenerateStatus,
+	).Scan(&file.ID, &file.CreatedAt, &file.UpdatedAt)
 
 	return err
 }
 
 func (d *Database) ListFiles() ([]CarFile, error) {
 	rows, err := d.db.Query(`
-		SELECT id, comm_p, data_cid, piece_cid, piece_size, car_size, file_path, raw_files, deal_status, deal_time, deal_error, deal_id, created_at
+		SELECT id, comm_p, data_cid, piece_cid, piece_size, car_size, file_path, raw_files, deal_status, deal_time, deal_error, deal_id, regenerate_status, created_at, updated_at
 		FROM files
 		ORDER BY created_at ASC
 	`)
@@ -236,7 +250,9 @@ func (d *Database) ListFiles() ([]CarFile, error) {
 			&file.DealTime,
 			&file.DealError,
 			&file.DealID,
+			&file.RegenerateStatus,
 			&file.CreatedAt,
+			&file.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -249,7 +265,7 @@ func (d *Database) ListFiles() ([]CarFile, error) {
 func (d *Database) GetFile(id string) (*CarFile, error) {
 	file := &CarFile{}
 	err := d.db.QueryRow(`
-		SELECT id, comm_p, data_cid, piece_cid, piece_size, car_size, file_path, raw_files, deal_status, deal_time, deal_error, deal_id, created_at
+		SELECT id, comm_p, data_cid, piece_cid, piece_size, car_size, file_path, raw_files, deal_status, deal_time, deal_error, deal_id, regenerate_status, created_at, updated_at
 		FROM files
 		WHERE id = $1
 	`, id).Scan(
@@ -265,7 +281,9 @@ func (d *Database) GetFile(id string) (*CarFile, error) {
 		&file.DealTime,
 		&file.DealError,
 		&file.DealID,
+		&file.RegenerateStatus,
 		&file.CreatedAt,
+		&file.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -296,7 +314,7 @@ func (d *Database) DeleteFile(id string) error {
 
 func (d *Database) SearchFiles(params SearchParams) ([]CarFile, error) {
 	query := `
-		SELECT id, comm_p, data_cid, piece_cid, piece_size, car_size, file_path, raw_files, deal_status, deal_time, deal_error, deal_id, created_at 
+		SELECT id, comm_p, data_cid, piece_cid, piece_size, car_size, file_path, raw_files, deal_status, deal_time, deal_error, deal_id, regenerate_status, created_at, updated_at 
 		FROM files 
 		WHERE 1=1
 	`
@@ -345,7 +363,9 @@ func (d *Database) SearchFiles(params SearchParams) ([]CarFile, error) {
 			&file.DealTime,
 			&file.DealError,
 			&file.DealID,
+			&file.RegenerateStatus,
 			&file.CreatedAt,
+			&file.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -371,9 +391,9 @@ func (d *Database) UpdateDealSentStatus(id string, status DealStatus, dealUUID s
 	// Update files table
 	result, err := tx.Exec(`
 		UPDATE files 
-		SET deal_status = $1, deal_time = $2, deal_id = $3
-		WHERE id = $4`,
-		status, now, dealUUID, id,
+		SET deal_status = $1, deal_time = $2, deal_id = $3, updated_at = $4
+		WHERE id = $5`,
+		status, now, dealUUID, now, id,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update files: %v", err)
@@ -454,13 +474,31 @@ func (d *Database) CreateUser(username, password string) error {
 }
 
 func (d *Database) InsertDeal(deal *Deal) error {
+	// Generate UUID if not provided
+	if deal.UUID == "" {
+		u, err := uuid.NewRandom()
+		if err != nil {
+			return err
+		}
+		deal.UUID = u.String()
+	}
+
+	now := time.Now()
+	if deal.CreatedAt.IsZero() {
+		deal.CreatedAt = now
+	}
+	if deal.UpdatedAt.IsZero() {
+		deal.UpdatedAt = now
+	}
+
 	err := d.db.QueryRow(`
-		INSERT INTO deals (uuid, storage_provider, client_wallet, payload_cid, commp, start_epoch, end_epoch, provider_collateral, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		RETURNING created_at, updated_at`,
+		INSERT INTO deals (uuid, storage_provider, client_wallet, payload_cid, commp, start_epoch, end_epoch, provider_collateral, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		RETURNING uuid, created_at, updated_at`,
 		deal.UUID, deal.StorageProvider, deal.ClientWallet, deal.PayloadCid, deal.CommP,
 		deal.StartEpoch, deal.EndEpoch, deal.ProviderCollateral, deal.Status,
-	).Scan(&deal.CreatedAt, &deal.UpdatedAt)
+		deal.CreatedAt, deal.UpdatedAt,
+	).Scan(&deal.UUID, &deal.CreatedAt, &deal.UpdatedAt)
 
 	return err
 }
@@ -584,7 +622,7 @@ func (d *Database) GetFilesByPieceCids(pieceCids []string) ([]CarFile, error) {
 	query := `
 		SELECT id, comm_p, data_cid, piece_cid, piece_size, car_size, 
 			   file_path, raw_files, deal_status, deal_time, deal_error, 
-			   deal_id, created_at
+			   deal_id, regenerate_status, created_at, updated_at
 		FROM files
 		WHERE piece_cid = ANY($1)
 		ORDER BY created_at DESC
@@ -612,7 +650,9 @@ func (d *Database) GetFilesByPieceCids(pieceCids []string) ([]CarFile, error) {
 			&file.DealTime,
 			&file.DealError,
 			&file.DealID,
+			&file.RegenerateStatus,
 			&file.CreatedAt,
+			&file.UpdatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan file: %v", err)
@@ -627,7 +667,7 @@ func (d *Database) ListPendingFiles() ([]CarFile, error) {
 	query := `
 		SELECT id, comm_p, data_cid, piece_cid, piece_size, car_size, 
 			   file_path, raw_files, deal_status, deal_time, deal_error, 
-			   deal_id, created_at
+			   deal_id, regenerate_status, created_at, updated_at
 		FROM files
 		WHERE deal_status = $1
 		ORDER BY created_at DESC
@@ -655,7 +695,9 @@ func (d *Database) ListPendingFiles() ([]CarFile, error) {
 			&file.DealTime,
 			&file.DealError,
 			&file.DealID,
+			&file.RegenerateStatus,
 			&file.CreatedAt,
+			&file.UpdatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan file: %v", err)
@@ -675,7 +717,7 @@ func (d *Database) GetFilesByDealStatus(status string, startTime, endTime *time.
 	query = `
 		SELECT id, comm_p, data_cid, piece_cid, piece_size, car_size, 
 			   file_path, raw_files, deal_status, deal_time, deal_error, 
-			   deal_id, created_at
+			   deal_id, regenerate_status, created_at, updated_at
 		FROM files
 		WHERE 1=1
 	`
@@ -725,7 +767,9 @@ func (d *Database) GetFilesByDealStatus(status string, startTime, endTime *time.
 			&file.DealTime,
 			&file.DealError,
 			&file.DealID,
+			&file.RegenerateStatus,
 			&file.CreatedAt,
+			&file.UpdatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan file: %v", err)
@@ -734,4 +778,26 @@ func (d *Database) GetFilesByDealStatus(status string, startTime, endTime *time.
 	}
 
 	return files, nil
+}
+
+func (d *Database) UpdateRegenerateStatus(id string, status RegenerateStatus) error {
+	result, err := d.db.Exec(`
+		UPDATE files 
+		SET regenerate_status = $1, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $2
+	`, status, id)
+	if err != nil {
+		return fmt.Errorf("failed to update regenerate status: %v", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %v", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("file not found with id: %s", id)
+	}
+
+	return nil
 }

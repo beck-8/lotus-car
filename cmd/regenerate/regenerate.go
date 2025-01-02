@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -80,16 +81,36 @@ func Command() *cli.Command {
 			defer database.Close()
 
 			// 获取原始 car 文件信息
-			carFile, err := database.GetFile(id)
+			file, err := database.GetFile(id)
 			if err != nil {
 				return fmt.Errorf("failed to get car file: %v", err)
 			}
 
-			// 解析原始文件列表
-			var rawFiles []db.RawFileInfo
-			err = json.Unmarshal([]byte(carFile.RawFiles), &rawFiles)
+			log.Printf("Start regenerating car file for id: %s", id)
+
+			// 更新状态为进行中
+			err = database.UpdateRegenerateStatus(id, db.RegenerateStatusPending)
 			if err != nil {
+				return fmt.Errorf("failed to update regenerate status: %v", err)
+			}
+
+			// 解析原始文件信息
+			var rawFiles []db.RawFileInfo
+			err = json.Unmarshal([]byte(file.RawFiles), &rawFiles)
+			if err != nil {
+				// 更新状态为失败
+				_ = database.UpdateRegenerateStatus(id, db.RegenerateStatusFailed)
 				return fmt.Errorf("failed to unmarshal raw files: %v", err)
+			}
+
+			// 检查所有原始文件是否存在
+			for _, rawFile := range rawFiles {
+				fullPath := filepath.Join(parent, rawFile.RelativePath)
+				if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+					// 更新状态为失败
+					_ = database.UpdateRegenerateStatus(id, db.RegenerateStatusFailed)
+					return fmt.Errorf("raw file not found: %s", fullPath)
+				}
 			}
 
 			// 生成临时 car 文件
@@ -97,6 +118,8 @@ func Command() *cli.Command {
 			outPath := path.Join(outDir, outFilename)
 			carF, err := os.Create(outPath)
 			if err != nil {
+				// 更新状态为失败
+				_ = database.UpdateRegenerateStatus(id, db.RegenerateStatusFailed)
 				return err
 			}
 
@@ -111,24 +134,32 @@ func Command() *cli.Command {
 			}
 			_, cid, _, err := util.GenerateCar(ctx, selectedFiles, parent, tmpDir, writer)
 			if err != nil {
+				// 更新状态为失败
+				_ = database.UpdateRegenerateStatus(id, db.RegenerateStatusFailed)
 				carF.Close()
 				os.Remove(outPath)
 				return err
 			}
 			err = writer.Flush()
 			if err != nil {
+				// 更新状态为失败
+				_ = database.UpdateRegenerateStatus(id, db.RegenerateStatusFailed)
 				carF.Close()
 				os.Remove(outPath)
 				return err
 			}
 			err = carF.Close()
 			if err != nil {
+				// 更新状态为失败
+				_ = database.UpdateRegenerateStatus(id, db.RegenerateStatusFailed)
 				os.Remove(outPath)
 				return err
 			}
 
 			rawCommP, pieceSize, err := cp.Digest()
 			if err != nil {
+				// 更新状态为失败
+				_ = database.UpdateRegenerateStatus(id, db.RegenerateStatusFailed)
 				os.Remove(outPath)
 				return err
 			}
@@ -137,34 +168,48 @@ func Command() *cli.Command {
 			rawCommP, err = commp.PadCommP(
 				rawCommP,
 				pieceSize,
-				carFile.PieceSize,
+				file.PieceSize,
 			)
 			if err != nil {
+				// 更新状态为失败
+				_ = database.UpdateRegenerateStatus(id, db.RegenerateStatusFailed)
 				os.Remove(outPath)
 				return err
 			}
-			pieceSize = carFile.PieceSize
+			pieceSize = file.PieceSize
 
 			commCid, err := commcid.DataCommitmentV1ToCID(rawCommP)
 			if err != nil {
+				// 更新状态为失败
+				_ = database.UpdateRegenerateStatus(id, db.RegenerateStatusFailed)
 				os.Remove(outPath)
 				return err
 			}
 
 			// 验证生成的 car 文件是否与原始文件一致
-			if commCid.String() != carFile.CommP {
+			if commCid.String() != file.CommP {
+				// 更新状态为失败
+				_ = database.UpdateRegenerateStatus(id, db.RegenerateStatusFailed)
 				os.Remove(outPath)
-				return fmt.Errorf("generated car file does not match original: expected CommP %s, got %s", carFile.CommP, commCid.String())
+				return fmt.Errorf("generated car file does not match original: expected CommP %s, got %s", file.CommP, commCid.String())
 			}
 
 			// 重命名为最终文件名
 			generatedFile := path.Join(outDir, commCid.String()+".car")
 			err = os.Rename(outPath, generatedFile)
 			if err != nil {
+				// 更新状态为失败
+				_ = database.UpdateRegenerateStatus(id, db.RegenerateStatusFailed)
 				return err
 			}
 
-			fmt.Printf("Successfully regenerated car file: %s\n", generatedFile)
+			// 更新状态为成功
+			err = database.UpdateRegenerateStatus(id, db.RegenerateStatusSuccess)
+			if err != nil {
+				return fmt.Errorf("failed to update regenerate status: %v", err)
+			}
+
+			log.Printf("Successfully regenerated car file: %s", generatedFile)
 			fmt.Printf("CommP: %s\n", commCid.String())
 			fmt.Printf("DataCid: %s\n", cid)
 			fmt.Printf("PieceSize: %d\n", pieceSize)

@@ -166,4 +166,10 @@ The tmp dir is useful when the dataset source is on slow storage such as NFS or 
 
 ## Database migration
 ```sh
+
+psql -d lotus_car -f db/migrations/add_updated_at.sql
+psql -d lotus_car -f db/migrations/add_regenerate_status.sql
+
 psql -d lotus_car -f db/migrations/rename_car_files_to_files.sql
+
+```
