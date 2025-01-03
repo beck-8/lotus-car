@@ -161,7 +161,7 @@ func readPieceCidsFromFile(filePath string) ([]string, error) {
 
 // 重新生成单个文件
 func regenerateFile(database *db.Database, file db.CarFile, parent, tmpDir, outDir string) error {
-	log.Printf("Start regenerating car file for id: %s", file.ID)
+	log.Printf("Start regenerating car file for id: %s, piece cid: %s", file.ID, file.PieceCid)
 
 	// 更新状态为进行中
 	err := database.UpdateRegenerateStatus(file.ID, db.RegenerateStatusPending)
