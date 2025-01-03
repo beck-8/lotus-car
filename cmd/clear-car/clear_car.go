@@ -29,6 +29,11 @@ func Command() *cli.Command {
 				Usage:    "Directories containing .car files to clean",
 				Required: true,
 			},
+			&cli.BoolFlag{
+				Name:  "really-do-it",
+				Usage: "Actually delete the files. If not set, will only show what would be deleted",
+				Value: false,
+			},
 		},
 		Action: func(c *cli.Context) error {
 			// Load configuration
@@ -58,6 +63,16 @@ func Command() *cli.Command {
 
 			// 获取所有目录
 			carDirs := c.StringSlice("car-dirs")
+			log.Printf("Searching in directories: %v", carDirs)
+
+			// 检查目录是否可访问
+			for _, dir := range carDirs {
+				if _, err := os.Stat(dir); err != nil {
+					log.Printf("Warning: Cannot access directory %s: %v", dir, err)
+					continue
+				}
+				log.Printf("Directory %s is accessible", dir)
+			}
 
 			// 统计信息
 			totalFound := 0
@@ -66,34 +81,42 @@ func Command() *cli.Command {
 
 			// 遍历每个成功的订单
 			for i, deal := range successDeals {
-				log.Printf("[%d/%d] Processing deal %s", i+1, len(successDeals), deal.UUID)
+				log.Printf("[%d/%d] Processing deal %s (CommP: %s)", i+1, len(successDeals), deal.UUID, deal.CommP)
 
 				// 在每个目录中查找对应的car文件
 				for _, dir := range carDirs {
 					carPath := filepath.Join(dir, fmt.Sprintf("%s.car", deal.CommP))
+					log.Printf("[%d/%d] Looking for file: %s", i+1, len(successDeals), carPath)
 
 					// 检查文件是否存在
-					if _, err := os.Stat(carPath); err != nil {
+					if fileInfo, err := os.Stat(carPath); err != nil {
 						if os.IsNotExist(err) {
+							log.Printf("[%d/%d] File not found: %s", i+1, len(successDeals), carPath)
 							continue
 						}
 						log.Printf("[%d/%d] Error checking file %s: %v", i+1, len(successDeals), carPath, err)
 						totalErrors++
 						continue
+					} else {
+						log.Printf("[%d/%d] Found file %s (size: %d, mode: %v)", i+1, len(successDeals), carPath, fileInfo.Size(), fileInfo.Mode())
 					}
 
 					totalFound++
 					log.Printf("[%d/%d] Found car file: %s", i+1, len(successDeals), carPath)
 
 					// 删除文件
-					// if err := os.Remove(carPath); err != nil {
-					// 	log.Printf("[%d/%d] Failed to delete file %s: %v", i+1, len(successDeals), carPath, err)
-					// 	totalErrors++
-					// 	continue
-					// }
-
-					totalDeleted++
-					log.Printf("[%d/%d] Successfully deleted car file: %s", i+1, len(successDeals), carPath)
+					if c.Bool("really-do-it") {
+						if err := os.Remove(carPath); err != nil {
+							log.Printf("[%d/%d] Failed to delete file %s: %v", i+1, len(successDeals), carPath, err)
+							totalErrors++
+							continue
+						}
+						totalDeleted++
+						log.Printf("[%d/%d] Successfully deleted car file: %s", i+1, len(successDeals), carPath)
+					} else {
+						totalDeleted++
+						log.Printf("[%d/%d] Would delete car file: %s (dry run)", i+1, len(successDeals), carPath)
+					}
 				}
 			}
 

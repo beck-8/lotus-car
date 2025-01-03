@@ -48,6 +48,6 @@ if [ $? -ne 0 ]; then
 fi
 
 # Verify the version
-../lotus-car version
+./lotus-car version
 
 echo "Release $VERSION completed successfully!"
