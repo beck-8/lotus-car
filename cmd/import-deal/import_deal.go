@@ -38,6 +38,11 @@ func Command() *cli.Command {
 				Usage: "Loop interval in seconds (0 means run once)",
 				Value: 0,
 			},
+			&cli.BoolFlag{
+				Name:  "regenerated",
+				Usage: "Only import deals with regenerated car files",
+				Value: false,
+			},
 		},
 		Action: func(c *cli.Context) error {
 			// Load configuration
@@ -50,9 +55,10 @@ func Command() *cli.Command {
 			boostdPath := c.String("boostd-path")
 			total := c.Int("total")
 			interval := c.Int64("interval")
+			regenerated := c.Bool("regenerated")
 
 			for {
-				if err := importDeals(cfg, carDir, boostdPath, total); err != nil {
+				if err := importDeals(cfg, carDir, boostdPath, total, regenerated); err != nil {
 					log.Printf("Error importing deals: %v", err)
 				}
 
@@ -68,7 +74,7 @@ func Command() *cli.Command {
 	}
 }
 
-func importDeals(cfg *config.Config, carDir, boostdPath string, total int) error {
+func importDeals(cfg *config.Config, carDir, boostdPath string, total int, regenerated bool) error {
 	// Initialize database connection
 	dbConfig := &db.DBConfig{
 		Host:     cfg.Database.Host,
@@ -118,6 +124,21 @@ func importDeals(cfg *config.Config, carDir, boostdPath string, total int) error
 			log.Printf("Car file not found for deal %s: %s", deal.UUID, carFile)
 			failureCount++
 			continue
+		}
+
+		// 如果设置了regenerated标志，检查files表中的regenerate_status
+		if regenerated {
+			file, err := database.GetFileByCommP(deal.CommP)
+			if err != nil {
+				log.Printf("Failed to get file info for deal %s: %v", deal.UUID, err)
+				failureCount++
+				continue
+			}
+			
+			if file.RegenerateStatus != "success" {
+				log.Printf("Skipping deal %s: regenerate_status is not success", deal.UUID)
+				continue
+			}
 		}
 
 		// Construct import command

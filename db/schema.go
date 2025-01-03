@@ -801,3 +801,56 @@ func (d *Database) UpdateRegenerateStatus(id string, status RegenerateStatus) er
 
 	return nil
 }
+
+func (d *Database) GetFileByCommP(commp string) (*CarFile, error) {
+	var file CarFile
+	var rawFiles sql.NullString
+	var dealTime sql.NullTime
+	var dealID sql.NullString
+	var regenerateStatus sql.NullString
+
+	query := `
+		SELECT id, commp, data_cid, piece_cid, piece_size, car_size, file_path, 
+		raw_files, deal_status, deal_time, deal_error, deal_id, regenerate_status
+		FROM files WHERE commp = $1
+	`
+
+	err := d.db.QueryRow(query, commp).Scan(
+		&file.ID,
+		&file.CommP,
+		&file.DataCid,
+		&file.PieceCid,
+		&file.PieceSize,
+		&file.CarSize,
+		&file.FilePath,
+		&rawFiles,
+		&file.DealStatus,
+		&dealTime,
+		&file.DealError,
+		&dealID,
+		&regenerateStatus,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("file with commp %s not found", commp)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error querying file: %w", err)
+	}
+
+	// 处理可空字段
+	if rawFiles.Valid {
+		file.RawFiles = rawFiles.String
+	}
+	if dealTime.Valid {
+		file.DealTime = &dealTime.Time
+	}
+	if dealID.Valid {
+		file.DealID = &dealID.String
+	}
+	if regenerateStatus.Valid {
+		file.RegenerateStatus = RegenerateStatus(regenerateStatus.String)
+	}
+
+	return &file, nil
+}
