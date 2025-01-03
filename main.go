@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/minerdao/lotus-car/cmd/deal"
-	"github.com/minerdao/lotus-car/cmd/export-file"
+	exportfile "github.com/minerdao/lotus-car/cmd/export-file"
 	"github.com/minerdao/lotus-car/cmd/generate"
 	importdeal "github.com/minerdao/lotus-car/cmd/import-deal"
 	"github.com/minerdao/lotus-car/cmd/index"
@@ -15,6 +15,7 @@ import (
 	initdb "github.com/minerdao/lotus-car/cmd/init-db"
 	"github.com/minerdao/lotus-car/cmd/regenerate"
 	"github.com/minerdao/lotus-car/cmd/server"
+	updatedeal "github.com/minerdao/lotus-car/cmd/update-deal"
 	"github.com/minerdao/lotus-car/cmd/user"
 	"github.com/minerdao/lotus-car/version"
 	"github.com/urfave/cli/v2"
@@ -46,6 +47,7 @@ func main() {
 			server.Command(),
 			user.Command(),
 			exportfile.Command(),
+			updatedeal.Command(),
 			{
 				Name:  "version",
 				Usage: "Print version information",
