@@ -854,3 +854,50 @@ func (d *Database) GetFileByCommP(commp string) (*CarFile, error) {
 
 	return &file, nil
 }
+
+// GetProposedDealsWithRegeneratedFiles 获取status为proposed且对应文件regenerate_status为success的订单
+func (d *Database) GetProposedDealsWithRegeneratedFiles() ([]Deal, error) {
+	query := `
+		SELECT DISTINCT d.uuid, d.storage_provider, d.client_wallet, d.payload_cid, 
+		d.commp, d.start_epoch, d.end_epoch, d.provider_collateral, d.status, 
+		d.created_at, d.updated_at
+		FROM deals d
+		JOIN files f ON d.commp = f.commp
+		WHERE d.status = 'proposed'
+		AND f.regenerate_status = 'success'
+	`
+
+	rows, err := d.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying deals: %w", err)
+	}
+	defer rows.Close()
+
+	var deals []Deal
+	for rows.Next() {
+		var deal Deal
+		err := rows.Scan(
+			&deal.UUID,
+			&deal.StorageProvider,
+			&deal.ClientWallet,
+			&deal.PayloadCid,
+			&deal.CommP,
+			&deal.StartEpoch,
+			&deal.EndEpoch,
+			&deal.ProviderCollateral,
+			&deal.Status,
+			&deal.CreatedAt,
+			&deal.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning deal: %w", err)
+		}
+		deals = append(deals, deal)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating deals: %w", err)
+	}
+
+	return deals, nil
+}

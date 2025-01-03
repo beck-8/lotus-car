@@ -125,11 +125,14 @@ The tmp dir is useful when the dataset source is on slow storage such as NFS or 
 
 # Run every 300 seconds (5 minutes)
 ./lotus-car import-deal --car-dir=/ipfsdata/car --boost-path=/usr/local/bin/boost --interval=300 --total=10
+
+./lotus-car import-deal --car-dir=/ipfsdata/car --boost-path=/usr/local/bin/boost --interval=300 --total=1 --regenerated=true
 ```
 - **--car-dir**：car file directory
 - **--boost-path**：path to boost executable
 - **--interval**：loop interval in seconds (0 means run once)
 - **--total**：number of deals to import
+- **--regenerated**：only import deals with regenerated car files
 
 ### Export files
 ```sh
@@ -178,8 +181,8 @@ psql -d lotus_car -f db/migrations/rename_car_files_to_files.sql
 ```sh
 git add .
 git commit -m chore: prepare for v1.0.0 release
-make release-common NEW_VERSION=v1.0.0
-git push origin v1.0.0
+make release-common NEW_VERSION=v1.0.2
+git push origin v1.0.2
 ./lotus-car version
 ```
 

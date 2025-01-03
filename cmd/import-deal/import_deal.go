@@ -91,14 +91,21 @@ func importDeals(cfg *config.Config, carDir, boostdPath string, total int, regen
 	}
 	defer database.Close()
 
-	// Get all proposed deals
-	deals, err := database.GetDealsByStatus("proposed")
+	var deals []db.Deal
+	if regenerated {
+		// 获取status为proposed且对应文件regenerate_status为success的订单
+		deals, err = database.GetProposedDealsWithRegeneratedFiles()
+	} else {
+		// 获取所有proposed状态的订单
+		deals, err = database.GetDealsByStatus("proposed")
+	}
+
 	if err != nil {
-		return fmt.Errorf("failed to get proposed deals: %v", err)
+		return fmt.Errorf("failed to get deals: %v", err)
 	}
 
 	if len(deals) == 0 {
-		log.Println("No proposed deals found")
+		log.Println("No deals found")
 		return nil
 	}
 
@@ -108,7 +115,7 @@ func importDeals(cfg *config.Config, carDir, boostdPath string, total int, regen
 		dealsToProcess = total
 	}
 
-	log.Printf("Found %d proposed deals, will process %d deals", len(deals), dealsToProcess)
+	log.Printf("Found %d deals, will process %d deals", len(deals), dealsToProcess)
 
 	successCount := 0
 	failureCount := 0
@@ -126,21 +133,6 @@ func importDeals(cfg *config.Config, carDir, boostdPath string, total int, regen
 			continue
 		}
 
-		// 如果设置了regenerated标志，检查files表中的regenerate_status
-		if regenerated {
-			file, err := database.GetFileByCommP(deal.CommP)
-			if err != nil {
-				log.Printf("Failed to get file info for deal %s: %v", deal.UUID, err)
-				failureCount++
-				continue
-			}
-			
-			if file.RegenerateStatus != "success" {
-				log.Printf("Skipping deal %s: regenerate_status is not success", deal.UUID)
-				continue
-			}
-		}
-
 		// Construct import command
 		cmd := exec.Command(boostdPath, "import-data", deal.UUID, carFile)
 
@@ -153,29 +145,16 @@ func importDeals(cfg *config.Config, carDir, boostdPath string, total int, regen
 			continue
 		}
 
-		log.Printf("Successfully imported deal %s", deal.UUID)
-
 		// Update deal status to imported
-		if err = database.UpdateDealStatus(deal.UUID, "imported"); err != nil {
-			log.Printf("Failed to update deal status: %v", err)
+		if err := database.UpdateDealStatus(deal.UUID, "imported"); err != nil {
+			log.Printf("Failed to update deal status for %s: %v", deal.UUID, err)
 			failureCount++
 			continue
 		}
 
 		successCount++
-
-		// Wait before next import if not the last one
-		if i < dealsToProcess-1 {
-			log.Printf("[%d/%d] Waiting %d seconds before next import...", i+1, dealsToProcess, 10)
-			time.Sleep(10 * time.Second)
-		}
 	}
 
-	// Print summary
-	log.Printf("\nImport Summary:")
-	log.Printf("Total Processed: %d", dealsToProcess)
-	log.Printf("Successful: %d", successCount)
-	log.Printf("Failed: %d", failureCount)
-
+	log.Printf("Import completed. Success: %d, Failure: %d", successCount, failureCount)
 	return nil
 }
