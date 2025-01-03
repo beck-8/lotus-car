@@ -59,62 +59,73 @@ func Command() *cli.Command {
 		Name:  "update-deal",
 		Usage: "Update deal statuses for imported deal",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "config",
-				Aliases:  []string{"c"},
-				Usage:    "path to config file",
-				Required: true,
-			},
 			&cli.IntFlag{
 				Name:    "interval",
 				Aliases: []string{"i"},
-				Usage:   "update interval in seconds",
-				Value:   300, // default 5 minutes
+				Usage:   "Loop interval in seconds (0 means run once)",
+				Value:   0,
+			},
+			&cli.StringFlag{
+				Name:    "boost-path",
+				Aliases: []string{"b"},
+				Usage:   "Path to boost executable",
+				Value:   "boost",
+			},
+			&cli.IntFlag{
+				Name:    "delay",
+				Aliases: []string{"d"},
+				Usage:   "Delay between each deal status check in seconds",
+				Value:   5,
 			},
 		},
-		Action: func(cctx *cli.Context) error {
-			cfg, err := config.LoadConfig(cctx.String("config"))
+		Action: func(c *cli.Context) error {
+			// Load configuration
+			cfg, err := config.LoadConfig(c.String("config"))
 			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
+				return fmt.Errorf("failed to load config: %v", err)
 			}
 
-			dbConfig := &db.DBConfig{
-				Host:     cfg.Database.Host,
-				Port:     cfg.Database.Port,
-				User:     cfg.Database.User,
-				Password: cfg.Database.Password,
-				DBName:   cfg.Database.DBName,
-				SSLMode:  cfg.Database.SSLMode,
+			interval := c.Int("interval")
+			boostPath := c.String("boost-path")
+			delay := c.Int("delay")
+
+			// 启动时立即运行一次
+			if err := updateDeals(cfg, boostPath, delay); err != nil {
+				log.Printf("Error updating deals: %v", err)
 			}
 
-			database, err := db.InitDB(dbConfig)
-			if err != nil {
-				return fmt.Errorf("failed to init database: %w", err)
-			}
-			defer database.Close()
-
-			interval := time.Duration(cctx.Int("interval")) * time.Second
-			ticker := time.NewTicker(interval)
-			defer ticker.Stop()
-
-			log.Printf("Starting deal status update service with interval: %v", interval)
-
-			for {
-				select {
-				case <-cctx.Context.Done():
-					return nil
-				case <-ticker.C:
-					if err := updateDeals(database, cfg.Deal.BoostPath); err != nil {
+			// 如果interval大于0，则继续循环运行
+			if interval > 0 {
+				for {
+					time.Sleep(time.Duration(interval) * time.Second)
+					if err := updateDeals(cfg, boostPath, delay); err != nil {
 						log.Printf("Error updating deals: %v", err)
 					}
 				}
 			}
+
+			return nil
 		},
 	}
 }
 
-func updateDeals(database *db.Database, boostPath string) error {
+func updateDeals(cfg *config.Config, boostPath string, delay int) error {
 	// Get all deals with "imported" status
+	dbConfig := &db.DBConfig{
+		Host:     cfg.Database.Host,
+		Port:     cfg.Database.Port,
+		User:     cfg.Database.User,
+		Password: cfg.Database.Password,
+		DBName:   cfg.Database.DBName,
+		SSLMode:  cfg.Database.SSLMode,
+	}
+
+	database, err := db.InitDB(dbConfig)
+	if err != nil {
+		return fmt.Errorf("failed to init database: %w", err)
+	}
+	defer database.Close()
+
 	deals, err := database.GetDealsByStatus("imported")
 	if err != nil {
 		return fmt.Errorf("failed to get imported deals: %w", err)
@@ -122,40 +133,56 @@ func updateDeals(database *db.Database, boostPath string) error {
 
 	log.Printf("Found %d imported deals to check", len(deals))
 
-	for _, deal := range deals {
+	successCount := 0
+	failureCount := 0
+
+	for i, deal := range deals {
+		// 添加延迟，防止API请求过快
+		time.Sleep(time.Duration(delay) * time.Second)
+
 		// Query deal status using boost CLI
+		log.Printf("[%d/%d] Checking deal %s status", i+1, len(deals), deal.UUID)
 		cmd := fmt.Sprintf("%s deal-status --provider=%s --deal-uuid=%s --wallet=%s", boostPath, deal.StorageProvider, deal.UUID, deal.ClientWallet)
 		output, err := util.ExecCmd("", cmd)
 		if err != nil {
-			log.Printf("Error querying deal status for %s: %v", deal.UUID, err)
-			continue
-		}
-
-		dealStatus, err := parseDealStatus(output)
-		if err != nil {
-			log.Printf("Error parsing deal status response for %s: %v", deal.UUID, err)
+			log.Printf("[%d/%d] Error querying deal status for %s: %v", i+1, len(deals), deal.UUID, err)
+			failureCount++
 			continue
 		}
 
 		// Map boost status to our status
 		var newStatus string
-		if strings.Contains(dealStatus.Status, "Proving") {
+		if strings.Contains(output, "Proving") {
 			newStatus = "success"
-		} else if strings.Contains(dealStatus.Status, "Error") {
+		} else if strings.Contains(output, "Error") {
 			newStatus = "failed"
 		} else {
 			// Deal is still in progress
-			continue
+			newStatus = "sealing"
 		}
+
+		log.Printf("[%d/%d] Deal %s raw status is %s, update status is %s", i+1, len(deals), deal.UUID, output, newStatus)
 
 		// Update deal status in database
 		if err := database.UpdateDealStatus(deal.UUID, newStatus); err != nil {
-			log.Printf("Error updating deal status for %s: %v", deal.UUID, err)
+			log.Printf("[%d/%d] Error updating deal status for %s: %v", i+1, len(deals), deal.UUID, err)
+			failureCount++
 			continue
 		}
 
-		log.Printf("Updated deal %s status from imported to %s", deal.UUID, newStatus)
+		log.Printf("[%d/%d] Updated deal %s status from imported to %s", i+1, len(deals), deal.UUID, newStatus)
+		if newStatus == "success" {
+			successCount++
+		} else if newStatus == "failed" {
+			failureCount++
+		}
 	}
+
+	log.Printf("\nUpdate Summary:")
+	log.Printf("Total Deals: %d", len(deals))
+	log.Printf("Success: %d", successCount)
+	log.Printf("Failed: %d", failureCount)
+	log.Printf("In Progress: %d", len(deals)-successCount-failureCount)
 
 	return nil
 }

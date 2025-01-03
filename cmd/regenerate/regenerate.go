@@ -98,12 +98,6 @@ func Command() *cli.Command {
 				if err != nil {
 					return fmt.Errorf("failed to get files by piece CIDs: %v", err)
 				}
-
-				if len(files) == 0 {
-					return fmt.Errorf("no files found for the provided piece CIDs")
-				}
-
-				log.Printf("Found %d files to regenerate", len(files))
 			} else {
 				if id == "" {
 					return fmt.Errorf("either --id or --from-piece-cids must be specified")
@@ -121,14 +115,32 @@ func Command() *cli.Command {
 				files = []db.CarFile{*file}
 			}
 
+			if len(files) == 0 {
+				return fmt.Errorf("no files found for the provided piece CIDs")
+			}
+
+			log.Printf("Found %d files to regenerate", len(files))
+
+			successCount := 0
+			failureCount := 0
+
 			// 处理每个文件
-			for _, file := range files {
+			for i, file := range files {
+				log.Printf("[%d/%d] Start regenerating file %s", i+1, len(files), file.ID)
 				err = regenerateFile(database, file, parent, tmpDir, outDir)
 				if err != nil {
-					log.Printf("Failed to regenerate file %s: %v", file.ID, err)
+					log.Printf("[%d/%d] Failed to regenerate file %s: %v", i+1, len(files), file.ID, err)
+					failureCount++
 					continue
 				}
+				successCount++
+				log.Printf("[%d/%d] Successfully regenerated file %s", i+1, len(files), file.ID)
 			}
+
+			log.Printf("\nRegenerate Summary:")
+			log.Printf("Total Files: %d", len(files))
+			log.Printf("Success: %d", successCount)
+			log.Printf("Failed: %d", failureCount)
 
 			return nil
 		},

@@ -586,7 +586,7 @@ func (d *Database) GetDealsByStatus(status string) ([]Deal, error) {
 			   created_at, updated_at
 		FROM deals
 		WHERE status = $1
-		ORDER BY created_at DESC
+		ORDER BY created_at ASC
 	`, status)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query deals: %v", err)
@@ -862,7 +862,7 @@ func (d *Database) GetProposedDealsWithRegeneratedFiles() ([]Deal, error) {
 		d.commp, d.start_epoch, d.end_epoch, d.provider_collateral, d.status, 
 		d.created_at, d.updated_at
 		FROM deals d
-		JOIN files f ON d.commp = f.commp
+		JOIN files f ON d.commp = f.comm_p
 		WHERE d.status = 'proposed'
 		AND f.regenerate_status = 'success'
 	`

@@ -181,8 +181,8 @@ psql -d lotus_car -f db/migrations/rename_car_files_to_files.sql
 ```sh
 git add .
 git commit -m chore: prepare for v1.0.0 release
-make release-common NEW_VERSION=v1.0.2
-git push origin v1.0.2
+make release-common NEW_VERSION=v1.0.3
+git push origin v1.0.3
 ./lotus-car version
 ```
 
