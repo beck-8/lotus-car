@@ -290,7 +290,7 @@ func regenerateFile(database *db.Database, file db.CarFile, parent, tmpDir, outD
 	}
 
 	// 重命名为最终文件名
-	generatedFile := filepath.Join(outDir, fmt.Sprintf("%s.car", file.ID))
+	generatedFile := filepath.Join(outDir, fmt.Sprintf("%s.car", file.PieceCid))
 	err = os.Rename(outPath, generatedFile)
 	if err != nil {
 		// 更新状态为失败

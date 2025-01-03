@@ -173,3 +173,13 @@ psql -d lotus_car -f db/migrations/add_regenerate_status.sql
 psql -d lotus_car -f db/migrations/rename_car_files_to_files.sql
 
 ```
+
+## Release
+```sh
+git add .
+git commit -m chore: prepare for v1.0.0 release
+make release-common NEW_VERSION=v1.0.0
+git push origin v1.0.0
+./lotus-car version
+```
+
