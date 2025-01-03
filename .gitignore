@@ -27,6 +27,7 @@ lotus-car
 lotus-car-darwin-amd64
 lotus-car-linux-amd64
 vendor
+releases/
 
 api.http
 

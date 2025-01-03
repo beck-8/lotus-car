@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/minerdao/lotus-car/cmd/regenerate"
 	"github.com/minerdao/lotus-car/cmd/server"
 	"github.com/minerdao/lotus-car/cmd/user"
+	"github.com/minerdao/lotus-car/version"
 	"github.com/urfave/cli/v2"
 )
 
@@ -22,8 +24,9 @@ func main() {
 	ctx := context.Background()
 
 	app := &cli.App{
-		Name:  "lotus-car",
-		Usage: "A tool for generating car files",
+		Name:    "lotus-car",
+		Usage:   "A tool for generating car files",
+		Version: version.Version,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "config",
@@ -43,6 +46,16 @@ func main() {
 			server.Command(),
 			user.Command(),
 			exportfile.Command(),
+			{
+				Name:  "version",
+				Usage: "Print version information",
+				Action: func(c *cli.Context) error {
+					fmt.Printf("Version: %s\n", version.Version)
+					fmt.Printf("Commit:  %s\n", version.Commit)
+					fmt.Printf("Date:    %s\n", version.Date)
+					return nil
+				},
+			},
 		},
 	}
 
