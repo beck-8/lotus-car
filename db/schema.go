@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
+	"github.com/minerdao/lotus-car/config"
 )
 
 type RawFileInfo struct {
@@ -900,4 +901,56 @@ func (d *Database) GetProposedDealsWithRegeneratedFiles() ([]Deal, error) {
 	}
 
 	return deals, nil
+}
+
+// GetSuccessDeals 获取所有状态为success的订单
+func (d *Database) GetSuccessDeals() ([]Deal, error) {
+	rows, err := d.db.Query(`
+		SELECT uuid, commp, storage_provider, client_wallet, status, created_at, updated_at
+		FROM deals
+		WHERE status = 'success'
+		ORDER BY created_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var deals []Deal
+	for rows.Next() {
+		var deal Deal
+		err := rows.Scan(
+			&deal.UUID,
+			&deal.CommP,
+			&deal.StorageProvider,
+			&deal.ClientWallet,
+			&deal.Status,
+			&deal.CreatedAt,
+			&deal.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		deals = append(deals, deal)
+	}
+
+	return deals, nil
+}
+
+// InitFromConfig 从配置文件初始化数据库连接
+func InitFromConfig(cfg *config.Config) (*Database, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+
+	dbConfig := &DBConfig{
+		Host:     cfg.Database.Host,
+		Port:     cfg.Database.Port,
+		User:     cfg.Database.User,
+		Password: cfg.Database.Password,
+		DBName:   cfg.Database.DBName,
+		SSLMode:  cfg.Database.SSLMode,
+	}
+
+	return InitDB(dbConfig)
 }

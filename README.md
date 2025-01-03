@@ -178,11 +178,15 @@ psql -d lotus_car -f db/migrations/rename_car_files_to_files.sql
 ```
 
 ## Release
+To create a new release, use the release script:
 ```sh
-git add .
-git commit -m chore: prepare for v1.0.0 release
-make release-common NEW_VERSION=v1.0.3
-git push origin v1.0.3
-./lotus-car version
+chmod +x scripts/release.sh  # First time only
+./scripts/release.sh v1.0.5  # Replace with your version
 ```
 
+The script will:
+1. Validate the version format (must be vX.Y.Z)
+2. Stage and commit all changes
+3. Create the release using make
+4. Push the new tag to origin
+5. Verify the version

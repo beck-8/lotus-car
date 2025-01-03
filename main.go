@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	clearcar "github.com/minerdao/lotus-car/cmd/clear-car"
 	"github.com/minerdao/lotus-car/cmd/deal"
 	exportfile "github.com/minerdao/lotus-car/cmd/export-file"
 	"github.com/minerdao/lotus-car/cmd/generate"
@@ -43,6 +44,7 @@ func main() {
 			generate.Command(),
 			regenerate.Command(),
 			deal.Command(),
+			clearcar.Command(),
 			importdeal.Command(),
 			server.Command(),
 			user.Command(),
