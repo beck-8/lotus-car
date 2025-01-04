@@ -126,7 +126,7 @@ func updateDeals(cfg *config.Config, boostPath string, delay int) error {
 	}
 	defer database.Close()
 
-	deals, err := database.GetDealsByStatus("imported")
+	deals, err := database.GetDealsForUpdate()
 	if err != nil {
 		return fmt.Errorf("failed to get imported deals: %w", err)
 	}
@@ -151,29 +151,26 @@ func updateDeals(cfg *config.Config, boostPath string, delay int) error {
 		}
 
 		// Map boost status to our status
-		var newStatus string
-		if strings.Contains(output, "Proving") {
-			newStatus = "success"
-		} else if strings.Contains(output, "Error") {
-			newStatus = "failed"
-		} else {
-			// Deal is still in progress
-			newStatus = "sealing"
+		status, err := parseDealStatus(output)
+		if err != nil {
+			log.Printf("[%d/%d] Error parsing deal status for %s: %v", i+1, len(deals), deal.UUID, err)
+			failureCount++
+			continue
 		}
 
-		log.Printf("[%d/%d] Deal %s raw status is %s, update status is %s", i+1, len(deals), deal.UUID, output, newStatus)
+		log.Printf("[%d/%d] Deal %s status is %s", i+1, len(deals), deal.UUID, status.Status)
 
 		// Update deal status in database
-		if err := database.UpdateDealStatus(deal.UUID, newStatus); err != nil {
+		if err := database.UpdateDealStatus(deal.UUID, status.Status); err != nil {
 			log.Printf("[%d/%d] Error updating deal status for %s: %v", i+1, len(deals), deal.UUID, err)
 			failureCount++
 			continue
 		}
 
-		log.Printf("[%d/%d] Updated deal %s status from imported to %s", i+1, len(deals), deal.UUID, newStatus)
-		if newStatus == "success" {
+		log.Printf("[%d/%d] Updated deal %s status from imported to %s", i+1, len(deals), deal.UUID, status.Status)
+		if status.Status == "Proving" || status.Status == "Announcing" {
 			successCount++
-		} else if newStatus == "failed" {
+		} else if status.Status == "Failed" {
 			failureCount++
 		}
 	}

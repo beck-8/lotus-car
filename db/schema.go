@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"golang.org/x/crypto/bcrypt"
 	"github.com/minerdao/lotus-car/config"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type RawFileInfo struct {
@@ -589,6 +589,45 @@ func (d *Database) GetDealsByStatus(status string) ([]Deal, error) {
 		WHERE status = $1
 		ORDER BY created_at ASC
 	`, status)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query deals: %v", err)
+	}
+	defer rows.Close()
+
+	var deals []Deal
+	for rows.Next() {
+		var deal Deal
+		err := rows.Scan(
+			&deal.UUID,
+			&deal.StorageProvider,
+			&deal.ClientWallet,
+			&deal.PayloadCid,
+			&deal.CommP,
+			&deal.StartEpoch,
+			&deal.EndEpoch,
+			&deal.ProviderCollateral,
+			&deal.Status,
+			&deal.CreatedAt,
+			&deal.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan deal: %v", err)
+		}
+		deals = append(deals, deal)
+	}
+
+	return deals, nil
+}
+
+func (d *Database) GetDealsForUpdate() ([]Deal, error) {
+	rows, err := d.db.Query(`
+		SELECT uuid, storage_provider, client_wallet, payload_cid, commp, 
+			   start_epoch, end_epoch, provider_collateral, status, 
+			   created_at, updated_at
+		FROM deals
+		WHERE status NOT IN ('proposed')
+		ORDER BY created_at ASC
+	`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query deals: %v", err)
 	}

@@ -49,17 +49,17 @@ func Command() *cli.Command {
 			defer database.Close()
 
 			// 获取所有成功的订单
-			successDeals, err := database.GetSuccessDeals()
+			provingDeals, err := database.GetDealsByStatus("Sealing: Proving")
 			if err != nil {
 				return fmt.Errorf("failed to get success deals: %v", err)
 			}
 
-			if len(successDeals) == 0 {
+			if len(provingDeals) == 0 {
 				log.Printf("No success deals found")
 				return nil
 			}
 
-			log.Printf("Found %d success deals", len(successDeals))
+			log.Printf("Found %d success deals", len(provingDeals))
 
 			// 获取所有目录
 			carDirs := c.StringSlice("car-dirs")
@@ -80,49 +80,49 @@ func Command() *cli.Command {
 			totalErrors := 0
 
 			// 遍历每个成功的订单
-			for i, deal := range successDeals {
-				log.Printf("[%d/%d] Processing deal %s (CommP: %s)", i+1, len(successDeals), deal.UUID, deal.CommP)
+			for i, deal := range provingDeals {
+				log.Printf("[%d/%d] Processing deal %s (CommP: %s)", i+1, len(provingDeals), deal.UUID, deal.CommP)
 
 				// 在每个目录中查找对应的car文件
 				for _, dir := range carDirs {
 					carPath := filepath.Join(dir, fmt.Sprintf("%s.car", deal.CommP))
-					log.Printf("[%d/%d] Looking for file: %s", i+1, len(successDeals), carPath)
+					log.Printf("[%d/%d] Looking for file: %s", i+1, len(provingDeals), carPath)
 
 					// 检查文件是否存在
 					if fileInfo, err := os.Stat(carPath); err != nil {
 						if os.IsNotExist(err) {
-							log.Printf("[%d/%d] File not found: %s", i+1, len(successDeals), carPath)
+							log.Printf("[%d/%d] File not found: %s", i+1, len(provingDeals), carPath)
 							continue
 						}
-						log.Printf("[%d/%d] Error checking file %s: %v", i+1, len(successDeals), carPath, err)
+						log.Printf("[%d/%d] Error checking file %s: %v", i+1, len(provingDeals), carPath, err)
 						totalErrors++
 						continue
 					} else {
-						log.Printf("[%d/%d] Found file %s (size: %d, mode: %v)", i+1, len(successDeals), carPath, fileInfo.Size(), fileInfo.Mode())
+						log.Printf("[%d/%d] Found file %s (size: %d, mode: %v)", i+1, len(provingDeals), carPath, fileInfo.Size(), fileInfo.Mode())
 					}
 
 					totalFound++
-					log.Printf("[%d/%d] Found car file: %s", i+1, len(successDeals), carPath)
+					log.Printf("[%d/%d] Found car file: %s", i+1, len(provingDeals), carPath)
 
 					// 删除文件
 					if c.Bool("really-do-it") {
 						if err := os.Remove(carPath); err != nil {
-							log.Printf("[%d/%d] Failed to delete file %s: %v", i+1, len(successDeals), carPath, err)
+							log.Printf("[%d/%d] Failed to delete file %s: %v", i+1, len(provingDeals), carPath, err)
 							totalErrors++
 							continue
 						}
 						totalDeleted++
-						log.Printf("[%d/%d] Successfully deleted car file: %s", i+1, len(successDeals), carPath)
+						log.Printf("[%d/%d] Successfully deleted car file: %s", i+1, len(provingDeals), carPath)
 					} else {
 						totalDeleted++
-						log.Printf("[%d/%d] Would delete car file: %s (dry run)", i+1, len(successDeals), carPath)
+						log.Printf("[%d/%d] Would delete car file: %s (dry run)", i+1, len(provingDeals), carPath)
 					}
 				}
 			}
 
 			// 打印总结信息
 			log.Printf("\nClear Summary:")
-			log.Printf("Total Success Deals: %d", len(successDeals))
+			log.Printf("Total Success Deals: %d", len(provingDeals))
 			log.Printf("Total Car Files Found: %d", totalFound)
 			log.Printf("Successfully Deleted: %d", totalDeleted)
 			log.Printf("Errors: %d", totalErrors)
