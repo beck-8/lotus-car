@@ -291,6 +291,13 @@ func sendDeals(cfg *config.Config, miner, fromWallet, api, boostClientPath, from
 	successCount := 0
 	failureCount := 0
 
+	// Track failed deals
+	type failedDealInfo struct {
+		commp  string
+		dealID string
+	}
+	var failedDeals []failedDealInfo
+
 	for i, file := range pendingDeals {
 		// Prepare deal command
 		cmd := boostClientPath + " offline-deal " +
@@ -326,6 +333,10 @@ func sendDeals(cfg *config.Config, miner, fromWallet, api, boostClientPath, from
 			deal, err := parseDealResponse(dealResponse)
 			if err != nil {
 				log.Printf("Failed to parse deal response: %v", err)
+				failedDeals = append(failedDeals, failedDealInfo{
+					commp:  file.PieceCid,
+					dealID: deal.UUID,
+				})
 				failureCount++
 				continue
 			}
@@ -333,6 +344,10 @@ func sendDeals(cfg *config.Config, miner, fromWallet, api, boostClientPath, from
 			// Save deal to database
 			if err = database.InsertDeal(deal); err != nil {
 				log.Printf("Failed to save deal: %v", err)
+				failedDeals = append(failedDeals, failedDealInfo{
+					commp:  file.PieceCid,
+					dealID: deal.UUID,
+				})
 				failureCount++
 				continue
 			}
@@ -357,6 +372,13 @@ func sendDeals(cfg *config.Config, miner, fromWallet, api, boostClientPath, from
 		log.Printf("Total Processed: %d", len(pendingDeals))
 		log.Printf("Successful: %d", successCount)
 		log.Printf("Failed: %d", failureCount)
+		
+		if len(failedDeals) > 0 {
+			log.Printf("\nFailed Deals:")
+			for _, fd := range failedDeals {
+				log.Printf("%s %s", fd.commp, fd.dealID)
+			}
+		}
 	}
 
 	return nil

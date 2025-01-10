@@ -625,7 +625,7 @@ func (d *Database) GetDealsForUpdate() ([]Deal, error) {
 			   start_epoch, end_epoch, provider_collateral, status, 
 			   created_at, updated_at
 		FROM deals
-		WHERE status NOT IN ('proposed')
+		WHERE status NOT IN ('proposed', 'Sealing: Proving', 'Error: user manually terminated the deal')
 		ORDER BY created_at ASC
 	`)
 	if err != nil {
@@ -942,12 +942,12 @@ func (d *Database) GetProposedDealsWithRegeneratedFiles() ([]Deal, error) {
 	return deals, nil
 }
 
-// GetSuccessDeals 获取所有状态为success的订单
-func (d *Database) GetSuccessDeals() ([]Deal, error) {
+func (d *Database) GetDealsForClear() ([]Deal, error) {
 	rows, err := d.db.Query(`
 		SELECT uuid, commp, storage_provider, client_wallet, status, created_at, updated_at
 		FROM deals
-		WHERE status = 'success'
+		WHERE status = 'Sealing: Proving'
+		OR status = 'Announcing'
 		ORDER BY created_at DESC
 	`)
 	if err != nil {
