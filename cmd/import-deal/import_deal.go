@@ -18,9 +18,9 @@ func Command() *cli.Command {
 		Name:  "import-deal",
 		Usage: "Import proposed deals data to boost",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
+			&cli.StringSliceFlag{
 				Name:     "car-dir",
-				Usage:    "Directory containing car files",
+				Usage:    "Directories containing car files (can be specified multiple times)",
 				Required: true,
 			},
 			&cli.StringFlag{
@@ -51,14 +51,14 @@ func Command() *cli.Command {
 				return fmt.Errorf("failed to load config: %v", err)
 			}
 
-			carDir := c.String("car-dir")
+			carDirs := c.StringSlice("car-dir")
 			boostdPath := c.String("boostd-path")
 			total := c.Int("total")
 			interval := c.Int64("interval")
 			regenerated := c.Bool("regenerated")
 
 			for {
-				if err := importDeals(cfg, carDir, boostdPath, total, regenerated); err != nil {
+				if err := importDeals(cfg, carDirs, boostdPath, total, regenerated); err != nil {
 					log.Printf("Error importing deals: %v", err)
 				}
 
@@ -74,7 +74,7 @@ func Command() *cli.Command {
 	}
 }
 
-func importDeals(cfg *config.Config, carDir, boostdPath string, total int, regenerated bool) error {
+func importDeals(cfg *config.Config, carDirs []string, boostdPath string, total int, regenerated bool) error {
 	// Initialize database connection
 	dbConfig := &db.DBConfig{
 		Host:     cfg.Database.Host,
@@ -123,12 +123,20 @@ func importDeals(cfg *config.Config, carDir, boostdPath string, total int, regen
 	for i := 0; i < dealsToProcess; i++ {
 		deal := deals[i]
 
-		// Construct car file path
-		carFile := filepath.Join(carDir, deal.CommP+".car")
-
-		// Check if car file exists
-		if _, err := os.Stat(carFile); os.IsNotExist(err) {
-			log.Printf("Car file not found for deal %s: %s", deal.UUID, carFile)
+		// Search for car file in all directories
+		var carFile string
+		var found bool
+		for _, dir := range carDirs {
+			path := filepath.Join(dir, deal.CommP+".car")
+			if _, err := os.Stat(path); err == nil {
+				carFile = path
+				found = true
+				break
+			}
+		}
+		
+		if !found {
+			log.Printf("Car file not found for deal %s in any of the specified directories", deal.UUID)
 			failureCount++
 			continue
 		}
